@@ -1,0 +1,15 @@
+data/
+experiments/
+outputs/
+__pycache__/
+.ipynb_checkpoints/
+*.pth
+*.pt
+*.ckpt
+*.log
+*.tmp
+*.egg-info/
+*.pyc
+.env
+.venv/
+venv/
