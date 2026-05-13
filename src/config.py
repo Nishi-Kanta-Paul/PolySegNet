@@ -39,6 +39,8 @@ class Config:
     resume_checkpoint: str = ""
     best_checkpoint: str = ""
     last_checkpoint: str = ""
+    checkpoint: str = ""
+    image: str = ""
     debug: bool = False
     debug_samples: int = 8
     debug_max_steps: int = 2
@@ -48,6 +50,11 @@ class Config:
             self.checkpoint_dir = os.path.join(
                 "experiments", self.experiment_name, "checkpoints"
             )
+
+        if not self.best_checkpoint:
+            self.best_checkpoint = os.path.join(self.checkpoint_dir, "best.pth")
+        if not self.last_checkpoint:
+            self.last_checkpoint = os.path.join(self.checkpoint_dir, "last.pth")
 
         for key, value in DEFAULT_LOSS_WEIGHTS.items():
             self.loss_weights.setdefault(key, value)
@@ -92,7 +99,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", default=None, help="Path to YAML config")
     parser.add_argument("--experiment-name", default=None)
     parser.add_argument("--dataset-root", default=None)
-    parser.add_argument("--image-dir", default=None)
+    parser.add_argument("--image-dir", "--image_dir", default=None)
     parser.add_argument("--mask-dir", default=None)
     parser.add_argument("--image-size", type=int, default=None)
     parser.add_argument("--batch-size", type=int, default=None)
@@ -127,9 +134,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--loss-dice", type=float, default=None)
     parser.add_argument("--loss-boundary", type=float, default=None)
     parser.add_argument("--checkpoint-dir", default=None)
+    parser.add_argument("--checkpoint", default=None)
     parser.add_argument("--resume-checkpoint", default=None)
     parser.add_argument("--best-checkpoint", default=None)
     parser.add_argument("--last-checkpoint", default=None)
+    parser.add_argument("--image", default=None)
     parser.add_argument(
         "--debug",
         action=argparse.BooleanOptionalAction,
@@ -162,9 +171,11 @@ def config_from_args(args: argparse.Namespace) -> Config:
         "use_csaf",
         "use_boundary_loss",
         "checkpoint_dir",
+        "checkpoint",
         "resume_checkpoint",
         "best_checkpoint",
         "last_checkpoint",
+        "image",
         "debug",
         "debug_samples",
         "debug_max_steps",
