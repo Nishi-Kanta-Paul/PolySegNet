@@ -1,12 +1,25 @@
 import os
-from typing import Callable, List, Optional, Tuple
+import random
+from typing import Callable, Dict, List, Optional, Tuple
 
+import albumentations as A
 import cv2
 import numpy as np
 import torch
 from torch.utils.data import Dataset
 
 IMAGE_EXTS: Tuple[str, ...] = (".png", ".jpg", ".jpeg", ".tif", ".tiff")
+DEFAULT_SPLIT_RATIOS: Tuple[float, float, float] = (0.8, 0.1, 0.1)
+
+
+def _resolve_dir(base: str, subdir: str) -> str:
+    if not subdir:
+        return base
+    if os.path.isabs(subdir):
+        return subdir
+    if base:
+        return os.path.join(base, subdir)
+    return subdir
 
 
 def _list_images(root: str) -> List[str]:
@@ -19,26 +32,177 @@ def _list_images(root: str) -> List[str]:
     ]
 
 
+def _read_split_file(path: str) -> List[str]:
+    if not os.path.isfile(path):
+        return []
+    with open(path, "r", encoding="utf-8") as handle:
+        return [line.strip() for line in handle if line.strip()]
+
+
+def _write_split_file(path: str, names: List[str]) -> None:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(names))
+
+
+def _create_splits(
+    names: List[str],
+    ratios: Tuple[float, float, float],
+    seed: int,
+) -> Dict[str, List[str]]:
+    rng = random.Random(seed)
+    ordered = sorted(names)
+    rng.shuffle(ordered)
+
+    total = len(ordered)
+    train_count = int(total * ratios[0])
+    val_count = int(total * ratios[1])
+    test_count = total - train_count - val_count
+
+    train_names = ordered[:train_count]
+    val_names = ordered[train_count : train_count + val_count]
+    test_names = ordered[train_count + val_count : train_count + val_count + test_count]
+
+    return {"train": train_names, "val": val_names, "test": test_names}
+
+
+def _load_or_create_split_names(
+    names: List[str],
+    dataset_root: str,
+    split: str,
+    ratios: Tuple[float, float, float],
+    seed: int,
+    split_dir: Optional[str] = None,
+) -> List[str]:
+    split_dir = split_dir or dataset_root or "."
+    train_path = os.path.join(split_dir, "train.txt")
+    val_path = os.path.join(split_dir, "val.txt")
+    test_path = os.path.join(split_dir, "test.txt")
+
+    if os.path.isfile(train_path) and os.path.isfile(val_path) and os.path.isfile(test_path):
+        split_files = {"train": train_path, "val": val_path, "test": test_path}
+        return _read_split_file(split_files[split])
+
+    splits = _create_splits(names, ratios, seed)
+    _write_split_file(train_path, splits["train"])
+    _write_split_file(val_path, splits["val"])
+    _write_split_file(test_path, splits["test"])
+    return splits[split]
+
+
+def build_transforms(
+    split: str,
+    image_size: int,
+    vertical_flip: bool = False,
+) -> A.Compose:
+    resize = A.Resize(
+        height=image_size,
+        width=image_size,
+        interpolation=cv2.INTER_LINEAR,
+        mask_interpolation=cv2.INTER_NEAREST,
+    )
+    normalize = A.Normalize()
+
+    if split == "train":
+        transforms = [
+            resize,
+            A.HorizontalFlip(p=0.5),
+            A.RandomRotate90(p=0.5),
+            A.ShiftScaleRotate(
+                shift_limit=0.1,
+                scale_limit=0.1,
+                rotate_limit=15,
+                border_mode=cv2.BORDER_CONSTANT,
+                value=0,
+                mask_value=0,
+                p=0.5,
+            ),
+            A.RandomBrightnessContrast(p=0.5),
+            normalize,
+        ]
+        if vertical_flip:
+            transforms.insert(2, A.VerticalFlip(p=0.5))
+    else:
+        transforms = [resize, normalize]
+
+    return A.Compose(transforms)
+
+
 class PolypDataset(Dataset):
     def __init__(
         self,
-        images_dir: str,
-        masks_dir: str,
+        dataset_root: str,
+        image_dir: str,
+        mask_dir: str,
+        split: str = "train",
         transform: Optional[Callable] = None,
         debug: bool = False,
         length: int = 8,
         image_size: int = 352,
+        seed: int = 42,
+        split_ratios: Tuple[float, float, float] = DEFAULT_SPLIT_RATIOS,
+        split_dir: Optional[str] = None,
     ) -> None:
-        self.images_dir = images_dir
-        self.masks_dir = masks_dir
+        if split not in {"train", "val", "test"}:
+            raise ValueError(f"Unsupported split '{split}'.")
+
+        self.split = split
         self.transform = transform
         self.debug = debug
         self.length = length
         self.image_size = image_size
-        self.image_paths = [] if debug else _list_images(images_dir)
+        self.samples: List[Tuple[str, str]] = []
+
+        if self.debug:
+            return
+
+        images_dir = _resolve_dir(dataset_root, image_dir)
+        masks_dir = _resolve_dir(dataset_root, mask_dir)
+
+        if not os.path.isdir(images_dir):
+            raise FileNotFoundError(f"Images directory not found: {images_dir}")
+        if not os.path.isdir(masks_dir):
+            raise FileNotFoundError(f"Masks directory not found: {masks_dir}")
+
+        image_paths = _list_images(images_dir)
+        if not image_paths:
+            raise FileNotFoundError(f"No images found in: {images_dir}")
+
+        image_names = [os.path.basename(path) for path in image_paths]
+        split_names = _load_or_create_split_names(
+            image_names,
+            dataset_root,
+            split,
+            split_ratios,
+            seed,
+            split_dir,
+        )
+
+        path_map = {os.path.basename(path): path for path in image_paths}
+        missing_images = [name for name in split_names if name not in path_map]
+        if missing_images:
+            raise FileNotFoundError(
+                "Split file references missing images, for example: "
+                f"{missing_images[:3]}"
+            )
+
+        missing_masks = [
+            name
+            for name in split_names
+            if not os.path.isfile(os.path.join(masks_dir, name))
+        ]
+        if missing_masks:
+            raise FileNotFoundError(
+                "Masks missing for images, for example: "
+                f"{missing_masks[:3]}"
+            )
+
+        self.samples = [
+            (path_map[name], os.path.join(masks_dir, name)) for name in split_names
+        ]
 
     def __len__(self) -> int:
-        return self.length if self.debug else len(self.image_paths)
+        return self.length if self.debug else len(self.samples)
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         if self.debug:
@@ -49,8 +213,7 @@ class PolypDataset(Dataset):
                 0, 2, (self.image_size, self.image_size), dtype=np.uint8
             )
         else:
-            image_path = self.image_paths[idx]
-            mask_path = os.path.join(self.masks_dir, os.path.basename(image_path))
+            image_path, mask_path = self.samples[idx]
 
             image = cv2.imread(image_path, cv2.IMREAD_COLOR)
             if image is None:
@@ -65,14 +228,27 @@ class PolypDataset(Dataset):
             transformed = self.transform(image=image, mask=mask)
             image = transformed["image"]
             mask = transformed["mask"]
+        else:
+            image = cv2.resize(
+                image,
+                (self.image_size, self.image_size),
+                interpolation=cv2.INTER_LINEAR,
+            )
+            mask = cv2.resize(
+                mask,
+                (self.image_size, self.image_size),
+                interpolation=cv2.INTER_NEAREST,
+            )
 
-        if image.dtype != np.float32:
+        if image.dtype == np.uint8:
             image = image.astype(np.float32) / 255.0
-        if mask.dtype != np.float32:
-            mask = mask.astype(np.float32) / 255.0
+        else:
+            image = image.astype(np.float32)
 
-        if mask.ndim == 2:
-            mask = np.expand_dims(mask, axis=-1)
+        if mask.ndim == 3:
+            mask = mask[:, :, 0]
+        mask = (mask > 0).astype(np.float32)
+        mask = np.expand_dims(mask, axis=-1)
 
         image_tensor = torch.from_numpy(image).permute(2, 0, 1)
         mask_tensor = torch.from_numpy(mask).permute(2, 0, 1)
