@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import sys
 from dataclasses import dataclass
 from typing import Dict, Optional
 
@@ -7,7 +9,13 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from .config import Config
+try:
+    from .config import Config
+except ImportError:
+    ROOT = os.path.dirname(os.path.abspath(__file__))
+    if ROOT not in sys.path:
+        sys.path.insert(0, ROOT)
+    from config import Config
 
 
 def _ensure_shape(tensor: torch.Tensor) -> torch.Tensor:
@@ -165,6 +173,9 @@ def evaluate_model(
     config: Optional[Config] = None,
 ) -> Dict[str, float]:
     model.eval()
+    max_steps = None
+    if config is not None and getattr(config, "debug", False):
+        max_steps = getattr(config, "debug_max_steps", None)
     meters = {
         "loss": AverageMeter(),
         "dice": AverageMeter(),
@@ -176,7 +187,9 @@ def evaluate_model(
     }
 
     with torch.no_grad():
-        for images, masks in dataloader:
+        for step, (images, masks) in enumerate(dataloader):
+            if max_steps is not None and step >= max_steps:
+                break
             images = images.to(device)
             masks = masks.to(device)
             logits = model(images)

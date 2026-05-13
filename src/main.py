@@ -1,19 +1,31 @@
-import argparse
+try:
+    from .config import build_arg_parser, config_from_args
+    from .evaluate import evaluate
+    from .explainability import run_explainability
+    from .inference import run_inference
+    from .train import train
+except ImportError:
+    import os
+    import sys
 
-from .config import load_config
-from .evaluate import evaluate
-from .explainability import run_explainability
-from .inference import run_inference
-from .train import train
+    ROOT = os.path.dirname(os.path.abspath(__file__))
+    if ROOT not in sys.path:
+        sys.path.insert(0, ROOT)
+
+    from config import build_arg_parser, config_from_args
+    from evaluate import evaluate
+    from explainability import run_explainability
+    from inference import run_inference
+    from train import train
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="PolySegNet runner")
+    parser = build_arg_parser()
+    parser.description = "PolySegNet runner"
     parser.add_argument("--mode", choices=["train", "eval", "infer", "explain"], required=True)
-    parser.add_argument("--config", default=None, help="Path to YAML config")
     args = parser.parse_args()
 
-    cfg = load_config(args.config)
+    cfg = config_from_args(args)
 
     if args.mode == "train":
         train(cfg)
