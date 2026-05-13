@@ -1,0 +1,13 @@
+# Data and experiment outputs
+/data/
+/experiments/
+/outputs/
+
+# Python cache
+__pycache__/
+.ipynb_checkpoints/
+
+# Model checkpoints
+*.pth
+*.pt
+*.ckpt
