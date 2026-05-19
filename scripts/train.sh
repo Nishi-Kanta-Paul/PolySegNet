@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-python -m src.main --mode train
+python src/main.py --mode train "$@"

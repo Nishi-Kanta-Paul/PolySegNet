@@ -6,6 +6,8 @@
 # Python cache
 __pycache__/
 .ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+.env
 
 # Model checkpoints
 *.pth

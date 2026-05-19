@@ -1,8 +1,13 @@
 import argparse
 import os
+import sys
 
 import cv2
 import torch
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
 
 from src.config import build_arg_parser, config_from_args
 from src.dataset import PolypDataset, build_transforms

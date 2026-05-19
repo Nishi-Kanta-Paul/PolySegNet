@@ -244,6 +244,7 @@ def train(cfg: Config) -> None:
             "val_precision": val_metrics.get("precision", 0.0),
             "val_recall": val_metrics.get("recall", 0.0),
             "val_mae": val_metrics.get("mae", 0.0),
+            "val_fbeta": val_metrics.get("fbeta", 0.0),
             "learning_rate": lr,
         }
         log_entries.append(log_entry)
