@@ -236,7 +236,7 @@ def train(cfg: Config) -> None:
         lr = optimizer.param_groups[0]["lr"]
 
         log_entry = {
-            "epoch": epoch + 1,
+            "epoch": epoch + 1 ,
             "train_loss": train_loss_meter.avg,
             "val_loss": val_loss,
             "val_dice": val_dice,
