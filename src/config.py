@@ -29,11 +29,19 @@ class Config:
     weight_decay: float = 1e-5
     seed: int = 42
     device: str = "cuda"
-    model_name: str = "polysegnet"
+    model_name: str = "bgdsf_polysegnet"
     pretrained: bool = True
     use_msca: bool = True
     use_csaf: bool = True
     use_boundary_loss: bool = False
+    use_dynamic_weighting: bool = True
+    use_boundary_guidance: bool = True
+    use_multilevel_boundary: bool = True
+    use_freq_aug: bool = False
+    boundary_kernel_size: int = 3
+    aux_boundary_weight: float = 0.3
+    multi_boundary_weight: float = 0.2
+    unified_channels: int = 128
     loss_weights: Dict[str, float] = field(default_factory=lambda: dict(DEFAULT_LOSS_WEIGHTS))
     checkpoint_dir: str = ""
     resume_checkpoint: str = ""
@@ -130,9 +138,33 @@ def build_arg_parser() -> argparse.ArgumentParser:
         action=argparse.BooleanOptionalAction,
         default=None,
     )
+    parser.add_argument(
+        "--use-dynamic-weighting",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+    )
+    parser.add_argument(
+        "--use-boundary-guidance",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+    )
+    parser.add_argument(
+        "--use-multilevel-boundary",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+    )
+    parser.add_argument(
+        "--use-freq-aug",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+    )
     parser.add_argument("--loss-bce", type=float, default=None)
     parser.add_argument("--loss-dice", type=float, default=None)
     parser.add_argument("--loss-boundary", type=float, default=None)
+    parser.add_argument("--boundary-kernel-size", type=int, default=None)
+    parser.add_argument("--aux-boundary-weight", type=float, default=None)
+    parser.add_argument("--multi-boundary-weight", type=float, default=None)
+    parser.add_argument("--unified-channels", type=int, default=None)
     parser.add_argument("--checkpoint-dir", default=None)
     parser.add_argument("--checkpoint", default=None)
     parser.add_argument("--resume-checkpoint", default=None)
@@ -170,6 +202,14 @@ def config_from_args(args: argparse.Namespace) -> Config:
         "use_msca",
         "use_csaf",
         "use_boundary_loss",
+        "use_dynamic_weighting",
+        "use_boundary_guidance",
+        "use_multilevel_boundary",
+        "use_freq_aug",
+        "boundary_kernel_size",
+        "aux_boundary_weight",
+        "multi_boundary_weight",
+        "unified_channels",
         "checkpoint_dir",
         "checkpoint",
         "resume_checkpoint",

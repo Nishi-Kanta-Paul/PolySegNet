@@ -41,6 +41,24 @@ def _normalize_for_visuals(image: np.ndarray) -> np.ndarray:
     return image
 
 
+def _apply_frequency_aug(images: torch.Tensor) -> torch.Tensor:
+    fft = torch.fft.fft2(images, dim=(-2, -1))
+    amplitude = torch.abs(fft)
+    phase = torch.angle(fft)
+
+    alpha = torch.empty(images.size(0), 1, 1, 1, device=images.device).uniform_(0.05, 0.15)
+    noise = torch.empty_like(amplitude).uniform_(-1.0, 1.0)
+    amplitude = amplitude * (1.0 + alpha * noise)
+
+    perturbed = amplitude * torch.exp(1j * phase)
+    reconstructed = torch.fft.ifft2(perturbed, dim=(-2, -1)).real
+
+    min_val = images.amin(dim=(-2, -1), keepdim=True)
+    max_val = images.amax(dim=(-2, -1), keepdim=True)
+    reconstructed = torch.max(torch.min(reconstructed, max_val), min_val)
+    return reconstructed
+
+
 def _save_visuals(
     model: nn.Module,
     dataloader: DataLoader,
@@ -56,8 +74,16 @@ def _save_visuals(
         for images, masks in dataloader:
             images = images.to(device)
             masks = masks.to(device)
-            logits = model(images)
-            probs = torch.sigmoid(logits)
+            outputs = model(images)
+            if isinstance(outputs, dict):
+                mask_logits = outputs.get("mask_logits")
+                boundary_logits = outputs.get("boundary_logits")
+            else:
+                mask_logits = outputs
+                boundary_logits = None
+            if mask_logits is None:
+                raise ValueError("mask_logits is required for visualization.")
+            probs = torch.sigmoid(mask_logits)
             for idx in range(images.size(0)):
                 image_np = images[idx].detach().cpu().permute(1, 2, 0).numpy()
                 mask_np = masks[idx].detach().cpu().squeeze(0).numpy()
@@ -68,6 +94,22 @@ def _save_visuals(
                     output_dir, f"epoch_{epoch:03d}_sample_{saved}.png"
                 )
                 cv2.imwrite(output_path, cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR))
+                if boundary_logits is not None:
+                    boundary_dir = os.path.join(output_dir, "boundary")
+                    ensure_dir(boundary_dir)
+                    boundary_np = (
+                        torch.sigmoid(boundary_logits[idx])
+                        .detach()
+                        .cpu()
+                        .squeeze(0)
+                        .numpy()
+                    )
+                    boundary_np = np.clip(boundary_np * 255.0, 0, 255).astype(np.uint8)
+                    boundary_heatmap = cv2.applyColorMap(boundary_np, cv2.COLORMAP_JET)
+                    boundary_path = os.path.join(
+                        boundary_dir, f"epoch_{epoch:03d}_sample_{saved}.png"
+                    )
+                    cv2.imwrite(boundary_path, boundary_heatmap)
                 saved += 1
                 if saved >= max_samples:
                     return
@@ -89,6 +131,10 @@ def _save_checkpoint(
         "epoch": epoch,
         "best_dice": best_dice,
         "config": asdict(cfg),
+        "use_dynamic_weighting": getattr(cfg, "use_dynamic_weighting", True),
+        "use_boundary_guidance": getattr(cfg, "use_boundary_guidance", True),
+        "use_multilevel_boundary": getattr(cfg, "use_multilevel_boundary", True),
+        "use_freq_aug": getattr(cfg, "use_freq_aug", False),
     }
     torch.save(state, path)
 
@@ -215,11 +261,13 @@ def train(cfg: Config) -> None:
                 break
             images = images.to(device)
             masks = masks.to(device)
+            if getattr(cfg, "use_freq_aug", False):
+                images = _apply_frequency_aug(images)
 
             optimizer.zero_grad(set_to_none=True)
             with torch.cuda.amp.autocast(enabled=device.type == "cuda"):
-                logits = model(images)
-                loss = criterion(logits, masks)
+                outputs = model(images)
+                loss, loss_dict = criterion(outputs, masks)
 
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -227,24 +275,31 @@ def train(cfg: Config) -> None:
 
             train_loss_meter.update(loss.item(), images.size(0))
 
-        val_metrics = evaluate_model(model, val_loader, criterion, device, cfg)
+        val_loss, val_metrics, val_loss_dict = evaluate_model(
+            model, val_loader, criterion, device, cfg
+        )
         if scheduler is not None:
             scheduler.step()
 
         val_dice = val_metrics.get("dice", 0.0)
-        val_loss = val_metrics.get("loss", 0.0)
         lr = optimizer.param_groups[0]["lr"]
 
         log_entry = {
             "epoch": epoch + 1 ,
             "train_loss": train_loss_meter.avg,
             "val_loss": val_loss,
+            "total_loss": val_loss_dict.get("total_loss", val_loss),
+            "bce_loss": val_loss_dict.get("bce_loss", 0.0),
+            "dice_loss": val_loss_dict.get("dice_loss", 0.0),
+            "boundary_loss": val_loss_dict.get("boundary_loss", 0.0),
+            "aux_boundary_loss": val_loss_dict.get("aux_boundary_loss", 0.0),
+            "multi_boundary_loss": val_loss_dict.get("multi_boundary_loss", 0.0),
             "val_dice": val_dice,
             "val_iou": val_metrics.get("iou", 0.0),
             "val_precision": val_metrics.get("precision", 0.0),
             "val_recall": val_metrics.get("recall", 0.0),
             "val_mae": val_metrics.get("mae", 0.0),
-            "val_fbeta": val_metrics.get("fbeta", 0.0),
+            "val_fbeta": val_metrics.get("f_measure", 0.0),
             "learning_rate": lr,
         }
         log_entries.append(log_entry)
