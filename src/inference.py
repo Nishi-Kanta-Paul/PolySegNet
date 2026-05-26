@@ -82,6 +82,7 @@ def _save_outputs(
     original_rgb: np.ndarray,
     prob_map: np.ndarray,
     mask_bin: np.ndarray,
+    boundary_map: np.ndarray | None,
 ) -> None:
     ensure_dir(output_dir)
 
@@ -101,6 +102,12 @@ def _save_outputs(
         os.path.join(output_dir, f"{stem}_overlay.png"),
         cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR),
     )
+    if boundary_map is not None:
+        boundary_uint8 = np.clip(boundary_map * 255.0, 0, 255).astype(np.uint8)
+        cv2.imwrite(
+            os.path.join(output_dir, f"{stem}_boundary.png"),
+            boundary_uint8,
+        )
 
 
 def run_inference(cfg: Config) -> None:
@@ -141,15 +148,47 @@ def run_inference(cfg: Config) -> None:
         for image_path in image_list:
             tensor, original_rgb, original_size = _prepare_image(image_path, transform)
             tensor = tensor.to(device)
-            logits = model(tensor)
-            probs = torch.sigmoid(logits).squeeze(0).squeeze(0).cpu().numpy()
+            outputs = model(tensor)
+            if isinstance(outputs, dict):
+                mask_logits = outputs.get("mask_logits")
+                boundary_logits = outputs.get("boundary_logits")
+            else:
+                mask_logits = outputs
+                boundary_logits = None
+            if mask_logits is None:
+                raise ValueError("mask_logits is required for inference.")
+
+            probs = torch.sigmoid(mask_logits).squeeze(0).squeeze(0).cpu().numpy()
+            mask_small = (probs >= 0.5).astype(np.uint8)
 
             prob_resized = cv2.resize(
                 probs,
                 original_size,
                 interpolation=cv2.INTER_LINEAR,
             )
-            mask_bin = (prob_resized >= 0.5).astype(np.uint8)
+            mask_bin = cv2.resize(
+                mask_small,
+                original_size,
+                interpolation=cv2.INTER_NEAREST,
+            )
+
+            boundary_resized = None
+            if boundary_logits is not None:
+                boundary_prob = (
+                    torch.sigmoid(boundary_logits).squeeze(0).squeeze(0).cpu().numpy()
+                )
+                boundary_resized = cv2.resize(
+                    boundary_prob,
+                    original_size,
+                    interpolation=cv2.INTER_LINEAR,
+                )
 
             stem = os.path.splitext(os.path.basename(image_path))[0]
-            _save_outputs(output_dir, stem, original_rgb, prob_resized, mask_bin)
+            _save_outputs(
+                output_dir,
+                stem,
+                original_rgb,
+                prob_resized,
+                mask_bin,
+                boundary_resized,
+            )

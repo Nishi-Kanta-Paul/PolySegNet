@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 import torch
 import torch.nn.functional as F
+from matplotlib import cm
 
 try:
     from .config import Config
@@ -86,11 +87,32 @@ def _normalize_heatmap(heatmap: torch.Tensor) -> torch.Tensor:
     return (heatmap - min_val) / (max_val - min_val)
 
 
+def save_boundary_heatmap(
+    boundary_logits: torch.Tensor,
+    original_image: np.ndarray,
+    save_path: str,
+) -> None:
+    boundary_prob = torch.sigmoid(boundary_logits).squeeze(0).squeeze(0).cpu().numpy()
+    resized = cv2.resize(
+        boundary_prob,
+        (original_image.shape[1], original_image.shape[0]),
+        interpolation=cv2.INTER_LINEAR,
+    )
+    heatmap = cm.get_cmap("jet")(resized)[:, :, :3]
+    heatmap_uint8 = np.clip(heatmap * 255.0, 0, 255).astype(np.uint8)
+    heatmap_bgr = cv2.cvtColor(heatmap_uint8, cv2.COLOR_RGB2BGR)
+    base_bgr = cv2.cvtColor(original_image, cv2.COLOR_RGB2BGR)
+    blended = cv2.addWeighted(base_bgr, 0.5, heatmap_bgr, 0.5, 0)
+    cv2.imwrite(save_path, blended)
+
+
 def run_explainability(cfg: Config) -> None:
     """
     Simple feature-based visualization (not full Grad-CAM).
     Uses the last encoder feature map averaged across channels.
     """
+    # Grad-CAM target for BGD-SF PolySegNet is model.bgd_cmsca (bottleneck module).
+    # In this implementation, the BGD-CMSCA block is exposed as model.bottleneck.
     set_seed(cfg.seed)
     device = get_device(cfg.device)
 
@@ -116,7 +138,9 @@ def run_explainability(cfg: Config) -> None:
         raise ValueError("Provide --image or --image_dir for explainability.")
 
     output_dir = os.path.join("experiments", cfg.experiment_name, "explainability")
+    boundary_dir = os.path.join(output_dir, "boundary_heatmaps")
     ensure_dir(output_dir)
+    ensure_dir(boundary_dir)
 
     model = build_model(cfg).to(device)
     model.eval()
@@ -128,6 +152,11 @@ def run_explainability(cfg: Config) -> None:
         for image_path in image_list:
             tensor, original_rgb, original_size = _prepare_image(image_path, transform)
             tensor = tensor.to(device)
+
+            outputs = model(tensor)
+            boundary_logits = None
+            if isinstance(outputs, dict):
+                boundary_logits = outputs.get("boundary_logits")
 
             features = model.encoder(tensor)
             heatmap = torch.mean(features[-1], dim=1, keepdim=True)
@@ -153,3 +182,9 @@ def run_explainability(cfg: Config) -> None:
             stem = os.path.splitext(os.path.basename(image_path))[0]
             cv2.imwrite(os.path.join(output_dir, f"{stem}_heatmap.png"), heatmap_color)
             cv2.imwrite(os.path.join(output_dir, f"{stem}_overlay.png"), overlay)
+            if boundary_logits is not None:
+                save_boundary_heatmap(
+                    boundary_logits,
+                    original_rgb,
+                    os.path.join(boundary_dir, f"{stem}_boundary.png"),
+                )
