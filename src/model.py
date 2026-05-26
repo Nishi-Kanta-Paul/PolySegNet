@@ -409,10 +409,7 @@ class BGDSFPolySegNet(nn.Module):
                 mode="bilinear",
                 align_corners=False,
             )
-        aux_boundary_logits = [
-            F.interpolate(ab, size=target_size, mode="bilinear", align_corners=False)
-            for ab in aux_boundary_logits
-        ]
+        # Keep auxiliary boundary logits at their native decoder scales.
 
         return {
             "mask_logits": mask_logits,

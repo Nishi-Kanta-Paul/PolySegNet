@@ -330,8 +330,21 @@ def train(cfg: Config) -> None:
         )
 
         print(
-            "Epoch {}/{} | train_loss {:.4f} | val_loss {:.4f} | val_dice {:.4f}".format(
-                epoch + 1, cfg.epochs, train_loss_meter.avg, val_loss, val_dice
+            "Epoch {}/{} | train_loss {:.4f} | total_loss {:.4f} | bce {:.4f} | dice {:.4f} | "
+            "boundary {:.4f} | aux {:.4f} | multi {:.4f} | val_dice {:.4f} | val_iou {:.4f} | "
+            "lr {:.6f}".format(
+                epoch + 1,
+                cfg.epochs,
+                train_loss_meter.avg,
+                val_loss_dict.get("total_loss", val_loss),
+                val_loss_dict.get("bce_loss", 0.0),
+                val_loss_dict.get("dice_loss", 0.0),
+                val_loss_dict.get("boundary_loss", 0.0),
+                val_loss_dict.get("aux_boundary_loss", 0.0),
+                val_loss_dict.get("multi_boundary_loss", 0.0),
+                val_dice,
+                val_metrics.get("iou", 0.0),
+                lr,
             )
         )
 

@@ -62,7 +62,7 @@ class Config:
         if not self.best_checkpoint:
             self.best_checkpoint = os.path.join(self.checkpoint_dir, "best.pth")
         if not self.last_checkpoint:
-            self.last_checkpoint = os.path.join(self.checkpoint_dir, "last.pth")
+            self.last_checkpoint = os.path.join(self.checkpoint_dir, "latest.pth")
 
         for key, value in DEFAULT_LOSS_WEIGHTS.items():
             self.loss_weights.setdefault(key, value)
@@ -75,9 +75,15 @@ def apply_debug_overrides(cfg: Config) -> None:
     cfg.debug = True
     cfg.batch_size = min(cfg.batch_size, 2) if cfg.batch_size else 2
     cfg.num_workers = 0
-    cfg.epochs = 1
+    cfg.epochs = 2
     cfg.debug_max_steps = min(cfg.debug_max_steps, 2) if cfg.debug_max_steps else 2
     cfg.debug_samples = min(cfg.debug_samples, 16) if cfg.debug_samples else 8
+    cfg.experiment_name = "debug"
+    cfg.checkpoint_dir = os.path.join("experiments", cfg.experiment_name, "checkpoints")
+    cfg.best_checkpoint = os.path.join(cfg.checkpoint_dir, "best.pth")
+    cfg.last_checkpoint = os.path.join(cfg.checkpoint_dir, "latest.pth")
+    cfg.use_boundary_loss = True
+    cfg.use_multilevel_boundary = True
 
 
 def load_config(path: Optional[str], finalize: bool = True) -> Config:

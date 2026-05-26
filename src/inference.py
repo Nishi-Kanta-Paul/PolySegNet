@@ -110,6 +110,15 @@ def _save_outputs(
         )
 
 
+def _create_dummy_image(output_dir: str, image_size: int) -> str:
+    ensure_dir(output_dir)
+    dummy = np.zeros((image_size, image_size, 3), dtype=np.uint8)
+    cv2.rectangle(dummy, (20, 20), (image_size - 20, image_size - 20), (0, 128, 255), 2)
+    dummy_path = os.path.join(output_dir, "debug_input.png")
+    cv2.imwrite(dummy_path, cv2.cvtColor(dummy, cv2.COLOR_RGB2BGR))
+    return dummy_path
+
+
 def run_inference(cfg: Config) -> None:
     set_seed(cfg.seed)
     device = get_device(cfg.device)
@@ -121,22 +130,28 @@ def run_inference(cfg: Config) -> None:
     image_path = _resolve_path(cfg.image, cfg.dataset_root)
     image_dir = _resolve_path(cfg.image_dir, cfg.dataset_root)
 
-    image_list: List[str] = []
-    if image_path:
-        if not os.path.isfile(image_path):
-            raise FileNotFoundError(f"Image not found: {image_path}")
-        image_list = [image_path]
-    elif image_dir:
-        if not os.path.isdir(image_dir):
-            raise FileNotFoundError(f"Image directory not found: {image_dir}")
-        image_list = _list_images(image_dir)
-        if not image_list:
-            raise FileNotFoundError(f"No images found in: {image_dir}")
-    else:
-        raise ValueError("Provide --image or --image_dir for inference.")
-
     output_dir = os.path.join("experiments", cfg.experiment_name, "inference")
     ensure_dir(output_dir)
+
+    image_list: List[str] = []
+    if image_path:
+        if os.path.isfile(image_path):
+            image_list = [image_path]
+        elif not cfg.debug:
+            raise FileNotFoundError(f"Image not found: {image_path}")
+    elif image_dir:
+        if os.path.isdir(image_dir):
+            image_list = _list_images(image_dir)
+            if not image_list and not cfg.debug:
+                raise FileNotFoundError(f"No images found in: {image_dir}")
+        elif not cfg.debug:
+            raise FileNotFoundError(f"Image directory not found: {image_dir}")
+    elif not cfg.debug:
+        raise ValueError("Provide --image or --image_dir for inference.")
+
+    if cfg.debug and not image_list:
+        dummy_path = _create_dummy_image(output_dir, cfg.image_size)
+        image_list = [dummy_path]
 
     model = build_model(cfg).to(device)
     model.eval()

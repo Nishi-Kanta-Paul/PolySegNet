@@ -2,14 +2,18 @@
 
 PolySegNet: A Hybrid Encoder-Decoder Architecture with Attention-Guided Feature Fusion for Robust Polyp Segmentation in Colonoscopy Images.
 
-## Overview
+## Architecture: BGD-SF PolySegNet
 
-This project implements a PyTorch-based binary polyp segmentation system with:
-- EfficientNet-B4 encoder (timm)
-- U-Net-style decoder
-- MSCA bottleneck for multi-scale context aggregation
-- CSAF for attention-guided skip fusion
-- Composite loss (BCE + Soft Dice + optional boundary loss)
+- Encoder: EfficientNet-B4 pretrained on ImageNet
+- Bottleneck: BGD-CMSCA — Boundary-Guided Dynamic Cascaded Multi-Scale
+	Context Aggregation with internal boundary-sensitive dynamic scale weighting
+- Skip Fusion: BG-SAGF — Boundary-Guided Selective Attention Fusion
+	with internally generated boundary prior at each decoder level
+- Boundary Head: MBGH — Multi-Level Boundary Guidance Head
+	with auxiliary supervision at D2, D3, D4
+- Final Mask: Boundary-refined via D1_bg = D1 + D1 * sigmoid(boundary_logits)
+- Loss: BCE + Soft Dice + Boundary Dice + Auxiliary Boundary + Multi-Level Boundary
+- Optional: Frequency-domain style augmentation for cross-dataset robustness
 
 ## Folder Structure
 
@@ -56,22 +60,18 @@ data/<DatasetName>/
 	test.txt
 ```
 
-## Training
+## Training Commands
 
 ```bash
-python src/main.py --mode train --dataset-root data/<DatasetName> --image-dir images --mask-dir masks
-```
+# Full model
+python src/main.py --mode train \
+	--experiment-name bgdsf_polysegnet_full
 
-Debug training (no real data needed):
-
-```bash
+# Debug mode
 python src/main.py --mode train --debug
-```
 
-## Evaluation
-
-```bash
-python src/main.py --mode eval --dataset-root data/<DatasetName> --image-dir images --mask-dir masks
+# Run all 8 ablation variants
+bash scripts/run_ablation.sh
 ```
 
 ## Inference
@@ -79,54 +79,40 @@ python src/main.py --mode eval --dataset-root data/<DatasetName> --image-dir ima
 Single image:
 
 ```bash
-python src/main.py --mode infer --checkpoint experiments/polysegnet/checkpoints/best.pth --image path/to/image.png
+python src/main.py --mode infer \
+	--checkpoint experiments/bgdsf_polysegnet_full/checkpoints/best.pth \
+	--image path/to/image.png
 ```
 
-Folder:
-
-```bash
-python src/main.py --mode infer --checkpoint experiments/polysegnet/checkpoints/best.pth --image_dir path/to/images
-```
-
-Inference outputs are saved to:
-
-```
-experiments/<experiment_name>/inference/
-```
-
-## Baselines and Ablations
-
-```bash
-python baselines/train_unet.py
-python baselines/train_effb4_unet.py --variant effb4_unet
-python baselines/train_effb4_unet.py --variant effb4_unet_msca
-python baselines/train_effb4_unet.py --variant effb4_unet_msca_csaf
-python baselines/train_effb4_unet.py --variant polysegnet_full
-```
-
-Run all ablations:
-
-```bash
-bash scripts/run_ablation.sh
-```
-
-Compare results:
+Generate ablation comparison table:
 
 ```bash
 python baselines/compare_results.py
 ```
 
-Comparison tables are saved to:
+## Ablation Table
 
-```
-outputs/tables/
-```
+| Variant | CMSCA | BG-SAGF | MBGH | FreqAug | Experiment Name |
+| --- | --- | --- | --- | --- | --- |
+| EfficientNet-B4 U-Net Baseline | – | – | – | – | effb4_unet_baseline |
+| + Original MSCA (parallel) | – | – | – | – | effb4_unet_original_msca |
+| + Cascaded CMSCA (static) | ✓ | – | – | – | effb4_unet_cmsca_static |
+| + BGD-CMSCA (dynamic) | ✓ | – | – | – | effb4_unet_bgd_cmsca |
+| + SAGF (plain) | ✓ | – | – | – | bgdsf_cmsca_sagf_plain |
+| + BG-SAGF | ✓ | ✓ | – | – | bgdsf_cmsca_bgsagf |
+| + MBGH | ✓ | ✓ | ✓ | – | bgdsf_polysegnet_no_freqaug |
+| Full BGD-SF (FreqAug) | ✓ | ✓ | ✓ | ✓ | bgdsf_polysegnet_full |
 
 ## Experiments vs Outputs
 
-- experiments/ contains raw runs: checkpoints, logs, visualizations, and results.json.
-- outputs/ is only for final paper-ready figures and tables.
-- Do not place checkpoints inside outputs/.
+experiments/<name>/checkpoints/   — model checkpoints
+experiments/<name>/logs/          — train/val loss and metric logs
+experiments/<name>/logs/visuals/  — validation mask visualizations
+experiments/<name>/logs/visuals/boundary/ — boundary heatmaps
+experiments/<name>/inference/     — inference outputs (_mask, _prob, _boundary, _overlay)
+experiments/<name>/explainability/boundary_heatmaps/ — Grad-CAM or boundary heatmaps
+outputs/tables/                   — final paper-ready comparison tables
+outputs/figures/                  — final paper-ready qualitative figures
 
 ## Notes
 
