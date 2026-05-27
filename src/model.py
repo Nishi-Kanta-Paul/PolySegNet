@@ -306,6 +306,29 @@ class UNet(nn.Module):
         return self.out_conv(dec1)
 
 
+def _build_unetpp(config) -> nn.Module:
+    try:
+        import segmentation_models_pytorch as smp
+    except ImportError as exc:
+        raise ImportError(
+            "segmentation_models_pytorch is required for Unet++. "
+            "Install with: pip install segmentation-models-pytorch"
+        ) from exc
+
+    encoder_name = getattr(config, "unetpp_encoder_name", "resnet34")
+    encoder_weights = getattr(config, "unetpp_encoder_weights", "imagenet")
+    in_channels = int(getattr(config, "unetpp_in_channels", 3))
+    classes = int(getattr(config, "unetpp_classes", 1))
+
+    return smp.UnetPlusPlus(
+        encoder_name=encoder_name,
+        encoder_weights=encoder_weights,
+        in_channels=in_channels,
+        classes=classes,
+        activation=None,
+    )
+
+
 class BGDSFPolySegNet(nn.Module):
     def __init__(
         self,
@@ -436,6 +459,9 @@ def build_model(config) -> nn.Module:
 
     if model_name == "unet":
         return UNet()
+
+    if model_name in {"unetpp", "unetplusplus", "unet++"}:
+        return _build_unetpp(config)
 
     msca_type = "bgd_cmsca"
     if model_name == "original_msca":

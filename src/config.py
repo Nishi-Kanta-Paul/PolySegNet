@@ -32,6 +32,10 @@ class Config:
     device: str = "cuda"
     model_name: str = "bgdsf_polysegnet"
     pretrained: bool = True
+    unetpp_encoder_name: str = "resnet34"
+    unetpp_encoder_weights: str = "imagenet"
+    unetpp_in_channels: int = 3
+    unetpp_classes: int = 1
     use_msca: bool = True
     use_csaf: bool = True
     use_mbgh: bool = True
@@ -126,6 +130,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--device", default=None)
     parser.add_argument("--model-name", default=None)
+    parser.add_argument("--unetpp-encoder-name", default=None)
+    parser.add_argument("--unetpp-encoder-weights", default=None)
+    parser.add_argument("--unetpp-in-channels", type=int, default=None)
+    parser.add_argument("--unetpp-classes", type=int, default=None)
     parser.add_argument(
         "--pretrained",
         action=argparse.BooleanOptionalAction,
@@ -211,6 +219,10 @@ def config_from_args(args: argparse.Namespace) -> Config:
         "seed",
         "device",
         "model_name",
+        "unetpp_encoder_name",
+        "unetpp_encoder_weights",
+        "unetpp_in_channels",
+        "unetpp_classes",
         "pretrained",
         "use_msca",
         "use_csaf",
