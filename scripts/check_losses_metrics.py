@@ -1,5 +1,6 @@
 import os
 import sys
+from types import SimpleNamespace
 
 import torch
 
@@ -15,17 +16,29 @@ def main() -> None:
     logits = torch.randn(2, 1, 352, 352)
     masks = torch.randint(0, 2, (2, 1, 352, 352)).float()
 
-    criterion = CompositeLoss(
-        bce_weight=1.0,
-        dice_weight=1.0,
-        boundary_weight=1.0,
+    cfg = SimpleNamespace(
+        loss_weights={"bce": 1.0, "dice": 1.0, "boundary": 1.0},
+        aux_boundary_weight=0.2,
+        boundary_kernel_size=3,
         use_boundary_loss=True,
+        use_multilevel_boundary=True,
     )
-    loss = criterion(logits, masks)
+    criterion = CompositeLoss(cfg)
 
-    metrics = calculate_metrics(logits, masks)
+    outputs = {
+        "mask_logits": logits,
+        "boundary_logits": torch.randn(2, 1, 352, 352),
+        "aux_boundary_logits": [
+            torch.randn(2, 1, 176, 176),
+            torch.randn(2, 1, 88, 88),
+        ],
+    }
+
+    loss, loss_dict = criterion(outputs, masks)
+    metrics = calculate_metrics(outputs, masks)
 
     print(f"Composite loss: {loss.item():.6f}")
+    print(f"Loss breakdown: {loss_dict}")
     for key, value in metrics.items():
         print(f"{key}: {value:.6f}")
 

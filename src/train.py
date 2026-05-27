@@ -41,24 +41,6 @@ def _normalize_for_visuals(image: np.ndarray) -> np.ndarray:
     return image
 
 
-def _apply_frequency_aug(images: torch.Tensor) -> torch.Tensor:
-    fft = torch.fft.fft2(images, dim=(-2, -1))
-    amplitude = torch.abs(fft)
-    phase = torch.angle(fft)
-
-    alpha = torch.empty(images.size(0), 1, 1, 1, device=images.device).uniform_(0.05, 0.15)
-    noise = torch.empty_like(amplitude).uniform_(-1.0, 1.0)
-    amplitude = amplitude * (1.0 + alpha * noise)
-
-    perturbed = amplitude * torch.exp(1j * phase)
-    reconstructed = torch.fft.ifft2(perturbed, dim=(-2, -1)).real
-
-    min_val = images.amin(dim=(-2, -1), keepdim=True)
-    max_val = images.amax(dim=(-2, -1), keepdim=True)
-    reconstructed = torch.max(torch.min(reconstructed, max_val), min_val)
-    return reconstructed
-
-
 def _save_visuals(
     model: nn.Module,
     dataloader: DataLoader,
@@ -134,6 +116,7 @@ def _save_checkpoint(
         "use_dynamic_weighting": getattr(cfg, "use_dynamic_weighting", True),
         "use_boundary_guidance": getattr(cfg, "use_boundary_guidance", True),
         "use_multilevel_boundary": getattr(cfg, "use_multilevel_boundary", True),
+        "use_mbgh": getattr(cfg, "use_mbgh", True),
         "use_freq_aug": getattr(cfg, "use_freq_aug", False),
     }
     torch.save(state, path)
@@ -157,7 +140,11 @@ def _load_checkpoint(
 
 
 def _build_dataloaders(cfg: Config, device: torch.device) -> Tuple[DataLoader, DataLoader]:
-    train_transform = build_transforms("train", cfg.image_size)
+    train_transform = build_transforms(
+        "train",
+        cfg.image_size,
+        use_freq_aug=getattr(cfg, "use_freq_aug", False),
+    )
     val_transform = build_transforms("val", cfg.image_size)
 
     train_dataset = PolypDataset(
@@ -261,9 +248,6 @@ def train(cfg: Config) -> None:
                 break
             images = images.to(device)
             masks = masks.to(device)
-            if getattr(cfg, "use_freq_aug", False):
-                images = _apply_frequency_aug(images)
-
             optimizer.zero_grad(set_to_none=True)
             with torch.cuda.amp.autocast(enabled=device.type == "cuda"):
                 outputs = model(images)
@@ -289,11 +273,10 @@ def train(cfg: Config) -> None:
             "train_loss": train_loss_meter.avg,
             "val_loss": val_loss,
             "total_loss": val_loss_dict.get("total_loss", val_loss),
-            "bce_loss": val_loss_dict.get("bce_loss", 0.0),
-            "dice_loss": val_loss_dict.get("dice_loss", 0.0),
+            "seg_bce_loss": val_loss_dict.get("seg_bce_loss", 0.0),
+            "seg_dice_loss": val_loss_dict.get("seg_dice_loss", 0.0),
             "boundary_loss": val_loss_dict.get("boundary_loss", 0.0),
             "aux_boundary_loss": val_loss_dict.get("aux_boundary_loss", 0.0),
-            "multi_boundary_loss": val_loss_dict.get("multi_boundary_loss", 0.0),
             "val_dice": val_dice,
             "val_iou": val_metrics.get("iou", 0.0),
             "val_precision": val_metrics.get("precision", 0.0),
@@ -330,18 +313,16 @@ def train(cfg: Config) -> None:
         )
 
         print(
-            "Epoch {}/{} | train_loss {:.4f} | total_loss {:.4f} | bce {:.4f} | dice {:.4f} | "
-            "boundary {:.4f} | aux {:.4f} | multi {:.4f} | val_dice {:.4f} | val_iou {:.4f} | "
-            "lr {:.6f}".format(
+            "Epoch {}/{} | train_loss {:.4f} | total_loss {:.4f} | seg_bce {:.4f} | seg_dice {:.4f} | "
+            "boundary {:.4f} | aux {:.4f} | val_dice {:.4f} | val_iou {:.4f} | lr {:.6f}".format(
                 epoch + 1,
                 cfg.epochs,
                 train_loss_meter.avg,
                 val_loss_dict.get("total_loss", val_loss),
-                val_loss_dict.get("bce_loss", 0.0),
-                val_loss_dict.get("dice_loss", 0.0),
+                val_loss_dict.get("seg_bce_loss", 0.0),
+                val_loss_dict.get("seg_dice_loss", 0.0),
                 val_loss_dict.get("boundary_loss", 0.0),
                 val_loss_dict.get("aux_boundary_loss", 0.0),
-                val_loss_dict.get("multi_boundary_loss", 0.0),
                 val_dice,
                 val_metrics.get("iou", 0.0),
                 lr,

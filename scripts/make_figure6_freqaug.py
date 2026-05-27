@@ -12,9 +12,8 @@ import numpy as np
 import torch
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 
-from src.dataset import build_transforms
+from src.dataset import _frequency_augment_np, build_transforms
 from src.model import build_model
-from src.train import _apply_frequency_aug
 from src.utils import ensure_dir, get_device
 
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32)
@@ -45,8 +44,6 @@ def _load_image(image_path: str) -> np.ndarray:
 def _prepare_tensor(image_rgb: np.ndarray, transform) -> torch.Tensor:
     transformed = transform(image=image_rgb) if transform is not None else {"image": image_rgb}
     image = transformed["image"].astype(np.float32)
-    if image.max() > 1.0:
-        image = image / 255.0
     tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0)
     return tensor
 
@@ -164,8 +161,9 @@ def main() -> None:
             image_rgb = _load_image(image_path)
             tensor = _prepare_tensor(image_rgb, transform).to(device)
 
-            aug_tensor = _apply_frequency_aug(tensor)
-            aug_rgb = _denormalize(aug_tensor)
+            aug_rgb = _frequency_augment_np(image_rgb)
+            aug_rgb = np.clip(aug_rgb, 0.0, 255.0).astype(np.uint8)
+            aug_tensor = _prepare_tensor(aug_rgb, transform).to(device)
 
             prob_without = _predict_mask(model_without, tensor)
             prob_with = _predict_mask(model_with, tensor)

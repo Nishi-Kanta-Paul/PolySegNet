@@ -61,8 +61,6 @@ def _load_image_mask(image_path: str, mask_path: str) -> Tuple[np.ndarray, np.nd
 def _prepare_tensor(image_rgb: np.ndarray, transform) -> torch.Tensor:
     transformed = transform(image=image_rgb) if transform is not None else {"image": image_rgb}
     image = transformed["image"].astype(np.float32)
-    if image.max() > 1.0:
-        image = image / 255.0
     tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0)
     return tensor
 

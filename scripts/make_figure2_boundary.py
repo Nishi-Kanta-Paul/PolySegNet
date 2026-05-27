@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import os
 from types import SimpleNamespace
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 import cv2
 import matplotlib.pyplot as plt
@@ -51,7 +51,37 @@ def _infer_mask_path(image_path: str) -> str:
             guess = os.path.join(candidate, os.path.basename(image_path))
             if os.path.isfile(guess):
                 return guess
-    return image_path
+    return ""
+
+
+def _index_masks(mask_dir: str) -> Tuple[Dict[str, str], Dict[str, str]]:
+    mask_paths = _list_images(mask_dir)
+    name_map: Dict[str, str] = {}
+    stem_map: Dict[str, str] = {}
+    for path in mask_paths:
+        name = os.path.basename(path)
+        name_map[name] = path
+        stem = os.path.splitext(name)[0]
+        if stem not in stem_map:
+            stem_map[stem] = path
+    return name_map, stem_map
+
+
+def _match_mask_path(
+    image_path: str,
+    mask_name_map: Dict[str, str],
+    mask_stem_map: Dict[str, str],
+) -> str:
+    base = os.path.basename(image_path)
+    if base in mask_name_map:
+        return mask_name_map[base]
+    stem = os.path.splitext(base)[0]
+    if stem in mask_stem_map:
+        return mask_stem_map[stem]
+    fallback = _infer_mask_path(image_path)
+    if fallback and os.path.isfile(fallback):
+        return fallback
+    return ""
 
 
 def _load_image_mask(image_path: str, mask_path: str) -> Tuple[np.ndarray, np.ndarray]:
@@ -69,8 +99,6 @@ def _load_image_mask(image_path: str, mask_path: str) -> Tuple[np.ndarray, np.nd
 def _prepare_tensor(image_rgb: np.ndarray, transform) -> torch.Tensor:
     transformed = transform(image=image_rgb) if transform is not None else {"image": image_rgb}
     image = transformed["image"].astype(np.float32)
-    if image.max() > 1.0:
-        image = image / 255.0
     tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0)
     return tensor
 
@@ -143,6 +171,8 @@ def main() -> None:
     if not image_paths:
         raise FileNotFoundError(f"No images found in: {image_dir}")
 
+    mask_name_map, mask_stem_map = _index_masks(mask_dir)
+
     indices = [int(idx) for idx in args.indices.split(",") if idx.strip()]
     if len(indices) != 4:
         raise ValueError("Provide exactly 4 comma-separated indices via --indices.")
@@ -170,9 +200,9 @@ def main() -> None:
         axes[0, j].set_title(title, fontsize=10)
 
     for row_idx, image_path in enumerate(selected):
-        mask_path = os.path.join(mask_dir, os.path.basename(image_path))
-        if not os.path.isfile(mask_path):
-            mask_path = _infer_mask_path(image_path)
+        mask_path = _match_mask_path(image_path, mask_name_map, mask_stem_map)
+        if not mask_path:
+            raise FileNotFoundError(f"Mask not found for image: {image_path}")
         image_rgb, gt_mask = _load_image_mask(image_path, mask_path)
         h, w = gt_mask.shape
 

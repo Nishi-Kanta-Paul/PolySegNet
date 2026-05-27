@@ -10,12 +10,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 EXPECTED_ORDER = [
-    "Baseline",
-    "Baseline + BGD-CMSCA",
-    "Baseline + BGD-CMSCA + BG-SAGF",
-    "Baseline + BGD-CMSCA + BG-SAGF + MBGH",
-    "Full Model (Ours)",
+    "EfficientNet-B4 U-Net Baseline",
+    "+ Original MSCA (parallel)",
+    "+ Cascaded CMSCA (static)",
+    "+ BGD-CMSCA (dynamic)",
+    "+ SAGF (plain)",
+    "+ BG-SAGF",
+    "+ MBGH",
+    "Full BGD-SF (FreqAug)",
 ]
+FULL_MODEL_LABEL = "Full BGD-SF (FreqAug)"
 
 
 def _load_csv(path: str) -> Dict[str, Dict[str, float]]:
@@ -82,7 +86,7 @@ def main() -> None:
                 fontsize=9,
             )
 
-    full_model_values = [results["Full Model (Ours)"][dataset] for dataset in datasets]
+    full_model_values = [results[FULL_MODEL_LABEL][dataset] for dataset in datasets]
     full_model_avg = float(np.mean(full_model_values)) if full_model_values else 0.0
     ax.axhline(full_model_avg, color="red", linestyle="--", linewidth=1.0)
     ax.text(

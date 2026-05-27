@@ -3,7 +3,24 @@ set -euo pipefail
 
 python src/main.py --mode infer "$@"
 
-EXP_NAME=${EXPERIMENT_NAME:-polysegnet}
+EXP_NAME="${EXPERIMENT_NAME:-}"
+NEXT_IS_EXP=0
+for arg in "$@"; do
+	if [[ "$NEXT_IS_EXP" -eq 1 ]]; then
+		EXP_NAME="$arg"
+		NEXT_IS_EXP=0
+		continue
+	fi
+	case "$arg" in
+		--experiment-name)
+			NEXT_IS_EXP=1
+			;;
+		--experiment-name=*)
+			EXP_NAME="${arg#--experiment-name=}"
+			;;
+	esac
+done
+EXP_NAME=${EXP_NAME:-${EXPERIMENT_NAME:-polysegnet}}
 INFER_DIR="experiments/${EXP_NAME}/inference"
 FIG_DIR="outputs/figures"
 

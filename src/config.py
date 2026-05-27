@@ -19,6 +19,7 @@ DEFAULT_LOSS_WEIGHTS: Dict[str, float] = {
 class Config:
     experiment_name: str = "polysegnet"
     dataset_root: str = "data"
+    dataset_roots: list[str] = field(default_factory=list)
     image_dir: str = "images"
     mask_dir: str = "masks"
     image_size: int = 352
@@ -33,14 +34,14 @@ class Config:
     pretrained: bool = True
     use_msca: bool = True
     use_csaf: bool = True
-    use_boundary_loss: bool = False
+    use_mbgh: bool = True
+    use_boundary_loss: bool = True
     use_dynamic_weighting: bool = True
     use_boundary_guidance: bool = True
     use_multilevel_boundary: bool = True
     use_freq_aug: bool = False
     boundary_kernel_size: int = 3
     aux_boundary_weight: float = 0.3
-    multi_boundary_weight: float = 0.2
     unified_channels: int = 128
     loss_weights: Dict[str, float] = field(default_factory=lambda: dict(DEFAULT_LOSS_WEIGHTS))
     checkpoint_dir: str = ""
@@ -113,6 +114,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--config", default=None, help="Path to YAML config")
     parser.add_argument("--experiment-name", default=None)
     parser.add_argument("--dataset-root", default=None)
+    parser.add_argument("--dataset-roots", nargs="+", default=None)
     parser.add_argument("--image-dir", "--image_dir", default=None)
     parser.add_argument("--mask-dir", default=None)
     parser.add_argument("--image-size", type=int, default=None)
@@ -136,6 +138,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--use-csaf",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+    )
+    parser.add_argument(
+        "--use-mbgh",
         action=argparse.BooleanOptionalAction,
         default=None,
     )
@@ -169,7 +176,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--loss-boundary", type=float, default=None)
     parser.add_argument("--boundary-kernel-size", type=int, default=None)
     parser.add_argument("--aux-boundary-weight", type=float, default=None)
-    parser.add_argument("--multi-boundary-weight", type=float, default=None)
     parser.add_argument("--unified-channels", type=int, default=None)
     parser.add_argument("--checkpoint-dir", default=None)
     parser.add_argument("--checkpoint", default=None)
@@ -193,6 +199,7 @@ def config_from_args(args: argparse.Namespace) -> Config:
     for field_name in (
         "experiment_name",
         "dataset_root",
+        "dataset_roots",
         "image_dir",
         "mask_dir",
         "image_size",
@@ -207,6 +214,7 @@ def config_from_args(args: argparse.Namespace) -> Config:
         "pretrained",
         "use_msca",
         "use_csaf",
+        "use_mbgh",
         "use_boundary_loss",
         "use_dynamic_weighting",
         "use_boundary_guidance",
@@ -214,7 +222,6 @@ def config_from_args(args: argparse.Namespace) -> Config:
         "use_freq_aug",
         "boundary_kernel_size",
         "aux_boundary_weight",
-        "multi_boundary_weight",
         "unified_channels",
         "checkpoint_dir",
         "checkpoint",

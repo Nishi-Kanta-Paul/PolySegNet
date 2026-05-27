@@ -1,6 +1,6 @@
 import os
 import random
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import albumentations as A
 import cv2
@@ -90,10 +90,33 @@ def _load_or_create_split_names(
     return splits[split]
 
 
+def _frequency_augment_np(image: np.ndarray, **kwargs) -> np.ndarray:
+    img = image.astype(np.float32)
+    if img.ndim == 2:
+        img = np.expand_dims(img, axis=-1)
+
+    fft = np.fft.fft2(img, axes=(0, 1))
+    amplitude = np.abs(fft)
+    phase = np.angle(fft)
+
+    alpha = np.random.uniform(0.05, 0.15)
+    noise = np.random.uniform(-1.0, 1.0, size=amplitude.shape)
+    amplitude = amplitude * (1.0 + alpha * noise)
+
+    perturbed = amplitude * np.exp(1j * phase)
+    reconstructed = np.fft.ifft2(perturbed, axes=(0, 1)).real
+
+    min_val = img.min(axis=(0, 1), keepdims=True)
+    max_val = img.max(axis=(0, 1), keepdims=True)
+    reconstructed = np.maximum(np.minimum(reconstructed, max_val), min_val)
+    return reconstructed
+
+
 def build_transforms(
     split: str,
     image_size: int,
     vertical_flip: bool = False,
+    use_freq_aug: bool = False,
 ) -> A.Compose:
     resize = A.Resize(
         height=image_size,
@@ -118,8 +141,10 @@ def build_transforms(
                 p=0.5,
             ),
             A.RandomBrightnessContrast(p=0.5),
-            normalize,
         ]
+        if use_freq_aug:
+            transforms.append(A.Lambda(image=_frequency_augment_np, p=1.0))
+        transforms.append(normalize)
         if vertical_flip:
             transforms.insert(2, A.VerticalFlip(p=0.5))
     else:
@@ -142,6 +167,7 @@ class PolypDataset(Dataset):
         seed: int = 42,
         split_ratios: Tuple[float, float, float] = DEFAULT_SPLIT_RATIOS,
         split_dir: Optional[str] = None,
+        return_paths: bool = False,
     ) -> None:
         if split not in {"train", "val", "test"}:
             raise ValueError(f"Unsupported split '{split}'.")
@@ -152,6 +178,7 @@ class PolypDataset(Dataset):
         self.length = length
         self.image_size = image_size
         self.samples: List[Tuple[str, str]] = []
+        self.return_paths = return_paths
 
         if self.debug:
             return
@@ -186,25 +213,42 @@ class PolypDataset(Dataset):
                 f"{missing_images[:3]}"
             )
 
-        missing_masks = [
-            name
-            for name in split_names
-            if not os.path.isfile(os.path.join(masks_dir, name))
-        ]
+        mask_paths = _list_images(masks_dir)
+        mask_name_map = {os.path.basename(path): path for path in mask_paths}
+        mask_stem_map: Dict[str, str] = {}
+        for path in mask_paths:
+            stem = os.path.splitext(os.path.basename(path))[0]
+            if stem not in mask_stem_map:
+                mask_stem_map[stem] = path
+
+        missing_masks: List[str] = []
+        for name in split_names:
+            if name in mask_name_map:
+                continue
+            stem = os.path.splitext(name)[0]
+            if stem not in mask_stem_map:
+                missing_masks.append(name)
         if missing_masks:
             raise FileNotFoundError(
                 "Masks missing for images, for example: "
                 f"{missing_masks[:3]}"
             )
 
-        self.samples = [
-            (path_map[name], os.path.join(masks_dir, name)) for name in split_names
-        ]
+        self.samples = []
+        for name in split_names:
+            image_path = path_map[name]
+            mask_path = mask_name_map.get(name)
+            if mask_path is None:
+                stem = os.path.splitext(name)[0]
+                mask_path = mask_stem_map[stem]
+            self.samples.append((image_path, mask_path))
 
     def __len__(self) -> int:
         return self.length if self.debug else len(self.samples)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(
+        self, idx: int
+    ) -> Union[Tuple[torch.Tensor, torch.Tensor], Tuple[torch.Tensor, torch.Tensor, Dict[str, str]]]:
         if self.debug:
             image = np.random.randint(
                 0, 256, (self.image_size, self.image_size, 3), dtype=np.uint8
@@ -212,6 +256,8 @@ class PolypDataset(Dataset):
             mask = np.random.randint(
                 0, 2, (self.image_size, self.image_size), dtype=np.uint8
             )
+            image_path = f"debug_image_{idx}.png"
+            mask_path = f"debug_mask_{idx}.png"
         else:
             image_path, mask_path = self.samples[idx]
 
@@ -252,4 +298,6 @@ class PolypDataset(Dataset):
 
         image_tensor = torch.from_numpy(image).permute(2, 0, 1)
         mask_tensor = torch.from_numpy(mask).permute(2, 0, 1)
+        if self.return_paths:
+            return image_tensor, mask_tensor, {"image_path": image_path, "mask_path": mask_path}
         return image_tensor, mask_tensor

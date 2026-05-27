@@ -69,8 +69,6 @@ def _prepare_image(
 
     transformed = transform(image=image_rgb) if transform is not None else {"image": image_rgb}
     image = transformed["image"].astype(np.float32)
-    if image.max() > 1.0:
-        image = image / 255.0
 
     tensor = torch.from_numpy(image).permute(2, 0, 1).unsqueeze(0)
     return tensor, image_rgb, original_size

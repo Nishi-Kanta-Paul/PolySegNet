@@ -314,6 +314,7 @@ class BGDSFPolySegNet(nn.Module):
         unified_channels: int = 128,
         use_msca: bool = True,
         use_csaf: bool = True,
+        use_mbgh: bool = True,
         use_dynamic_weighting: bool = True,
         use_boundary_guidance: bool = True,
         use_boundary_loss: bool = False,
@@ -323,7 +324,7 @@ class BGDSFPolySegNet(nn.Module):
         super().__init__()
         self.use_msca = use_msca
         self.use_csaf = use_csaf
-        self.use_boundary_loss = use_boundary_loss
+        self.use_mbgh = use_mbgh
 
         self.encoder = timm.create_model(
             encoder_name,
@@ -365,7 +366,7 @@ class BGDSFPolySegNet(nn.Module):
         self.decoder_blocks = nn.ModuleList(decoder_blocks)
 
         self.final_conv = nn.Conv2d(unified_channels, 1, kernel_size=1)
-        self.mbgh = MBGH(unified_channels, use_multilevel_boundary) if use_boundary_loss else None
+        self.mbgh = MBGH(unified_channels, use_multilevel_boundary) if use_mbgh else None
 
     def forward(self, x: torch.Tensor) -> dict[str, object]:
         features = self.encoder(x)
@@ -388,7 +389,7 @@ class BGDSFPolySegNet(nn.Module):
         d2 = self.decoder_blocks[2](e2, d3)
         d1 = self.decoder_blocks[3](e1, d2)
 
-        if self.use_boundary_loss and self.mbgh is not None:
+        if self.use_mbgh and self.mbgh is not None:
             boundary_logits, mask_logits, aux_boundary_logits = self.mbgh(d1, d2, d3, d4)
         else:
             mask_logits = self.final_conv(d1)
@@ -427,6 +428,7 @@ def build_model(config) -> nn.Module:
     unified_channels = int(getattr(config, "unified_channels", 128))
     use_msca = bool(getattr(config, "use_msca", True))
     use_csaf = bool(getattr(config, "use_csaf", True))
+    use_mbgh = bool(getattr(config, "use_mbgh", True))
     use_dynamic_weighting = bool(getattr(config, "use_dynamic_weighting", True))
     use_boundary_guidance = bool(getattr(config, "use_boundary_guidance", True))
     use_boundary_loss = bool(getattr(config, "use_boundary_loss", False))
@@ -453,6 +455,7 @@ def build_model(config) -> nn.Module:
             unified_channels=unified_channels,
             use_msca=use_msca,
             use_csaf=use_csaf,
+            use_mbgh=use_mbgh,
             use_dynamic_weighting=use_dynamic_weighting,
             use_boundary_guidance=use_boundary_guidance,
             use_boundary_loss=use_boundary_loss,
@@ -471,6 +474,7 @@ if __name__ == "__main__":
         unified_channels=128,
         use_msca=True,
         use_csaf=True,
+        use_mbgh=True,
         use_boundary_loss=True,
         use_dynamic_weighting=True,
         use_boundary_guidance=True,

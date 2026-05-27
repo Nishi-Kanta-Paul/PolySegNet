@@ -12,6 +12,15 @@ import matplotlib.pyplot as plt
 
 
 SPECIAL_ROWS = ["Params(M)", "FLOPs(G)", "FPS"]
+LOWER_IS_BETTER = {
+    "mae",
+    "hd",
+    "hd95",
+    "hausdorff",
+    "hausdorff distance",
+    "params(m)",
+    "flops(g)",
+}
 
 
 @dataclass(frozen=True)
@@ -126,13 +135,20 @@ def _format_column_label(dataset: str, metric: str) -> str:
     return f"{dataset} {metric}".strip()
 
 
-def _best_second(values: List[float]) -> Tuple[float | None, float | None]:
+def _best_second(
+    values: List[float],
+    higher_is_better: bool = True,
+) -> Tuple[float | None, float | None]:
     if not values:
         return None, None
-    unique = sorted(set(values), reverse=True)
+    unique = sorted(set(values), reverse=higher_is_better)
     best = unique[0] if unique else None
     second = unique[1] if len(unique) > 1 else None
     return best, second
+
+
+def _is_lower_better(metric: str) -> bool:
+    return metric.strip().lower() in LOWER_IS_BETTER
 
 
 def _build_table_data(records: List[Record]) -> Tuple[List[str], List[List[str]], List[Tuple[str, str]], Dict[str, Dict[Tuple[str, str], float]]]:
@@ -253,7 +269,8 @@ def main() -> None:
             number = numeric_values.get(method, {}).get(key)
             if number is not None:
                 values.append(number)
-        best_second_by_col[key] = _best_second(values)
+        higher_is_better = not _is_lower_better(key[1])
+        best_second_by_col[key] = _best_second(values, higher_is_better=higher_is_better)
 
     tol = 1e-9
     for col_idx, key in enumerate(column_keys, start=1):
