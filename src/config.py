@@ -32,6 +32,10 @@ class Config:
     device: str = "cuda"
     model_name: str = "bgdsf_polysegnet"
     pretrained: bool = True
+    smp_encoder_name: str = "resnet34"
+    smp_encoder_weights: str = "imagenet"
+    smp_in_channels: int = 3
+    smp_classes: int = 1
     unetpp_encoder_name: str = "resnet34"
     unetpp_encoder_weights: str = "imagenet"
     unetpp_in_channels: int = 3
@@ -130,6 +134,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--device", default=None)
     parser.add_argument("--model-name", default=None)
+    parser.add_argument("--smp-encoder-name", default=None)
+    parser.add_argument("--smp-encoder-weights", default=None)
+    parser.add_argument("--smp-in-channels", type=int, default=None)
+    parser.add_argument("--smp-classes", type=int, default=None)
     parser.add_argument("--unetpp-encoder-name", default=None)
     parser.add_argument("--unetpp-encoder-weights", default=None)
     parser.add_argument("--unetpp-in-channels", type=int, default=None)
@@ -219,6 +227,10 @@ def config_from_args(args: argparse.Namespace) -> Config:
         "seed",
         "device",
         "model_name",
+        "smp_encoder_name",
+        "smp_encoder_weights",
+        "smp_in_channels",
+        "smp_classes",
         "unetpp_encoder_name",
         "unetpp_encoder_weights",
         "unetpp_in_channels",

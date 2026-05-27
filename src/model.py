@@ -306,27 +306,55 @@ class UNet(nn.Module):
         return self.out_conv(dec1)
 
 
-def _build_unetpp(config) -> nn.Module:
+def _build_smp_model(config, architecture: str) -> nn.Module:
     try:
         import segmentation_models_pytorch as smp
     except ImportError as exc:
         raise ImportError(
-            "segmentation_models_pytorch is required for Unet++. "
+            "segmentation_models_pytorch is required for SMP baselines. "
             "Install with: pip install segmentation-models-pytorch"
         ) from exc
 
-    encoder_name = getattr(config, "unetpp_encoder_name", "resnet34")
-    encoder_weights = getattr(config, "unetpp_encoder_weights", "imagenet")
-    in_channels = int(getattr(config, "unetpp_in_channels", 3))
-    classes = int(getattr(config, "unetpp_classes", 1))
+    encoder_name = (
+        getattr(config, "smp_encoder_name", None)
+        or getattr(config, "unetpp_encoder_name", "resnet34")
+    )
+    encoder_weights = (
+        getattr(config, "smp_encoder_weights", None)
+        or getattr(config, "unetpp_encoder_weights", "imagenet")
+    )
+    in_channels = int(
+        getattr(config, "smp_in_channels", None)
+        or getattr(config, "unetpp_in_channels", 3)
+    )
+    classes = int(
+        getattr(config, "smp_classes", None)
+        or getattr(config, "unetpp_classes", 1)
+    )
 
-    return smp.UnetPlusPlus(
+    model_map = {
+        "smp_unet": smp.Unet,
+        "smp_unetpp": smp.UnetPlusPlus,
+        "smp_deeplabv3plus": smp.DeepLabV3Plus,
+        "smp_fpn": smp.FPN,
+        "smp_pspnet": smp.PSPNet,
+        "smp_linknet": smp.Linknet,
+    }
+    if architecture not in model_map:
+        raise ValueError(f"Unsupported SMP architecture: {architecture}")
+
+    model_cls = model_map[architecture]
+    return model_cls(
         encoder_name=encoder_name,
         encoder_weights=encoder_weights,
         in_channels=in_channels,
         classes=classes,
         activation=None,
     )
+
+
+def _build_unetpp(config) -> nn.Module:
+    return _build_smp_model(config, "smp_unetpp")
 
 
 class BGDSFPolySegNet(nn.Module):
@@ -462,6 +490,16 @@ def build_model(config) -> nn.Module:
 
     if model_name in {"unetpp", "unetplusplus", "unet++"}:
         return _build_unetpp(config)
+
+    if model_name in {
+        "smp_unet",
+        "smp_unetpp",
+        "smp_deeplabv3plus",
+        "smp_fpn",
+        "smp_pspnet",
+        "smp_linknet",
+    }:
+        return _build_smp_model(config, model_name)
 
     msca_type = "bgd_cmsca"
     if model_name == "original_msca":
