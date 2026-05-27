@@ -27,6 +27,7 @@ LOWER_IS_BETTER = {
     "hd",
     "hd95",
     "asd",
+    "assd",
     "flops_g",
     "params_m",
     "ms_per_image",

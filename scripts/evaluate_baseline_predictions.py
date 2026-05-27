@@ -12,7 +12,7 @@ import torch
 
 from src.dataset import IMAGE_EXTS, PolypDataset, build_transforms
 from src.evaluate import generate_boundary_target
-from src.evaluate import _boundary_f1_score, _hausdorff_distance
+from src.evaluate import _boundary_f1_score, _hausdorff_distance, _surface_metrics
 from src.utils import ensure_dir, save_json
 
 
@@ -97,6 +97,10 @@ def _compute_metrics(gt: np.ndarray, pred_prob: np.ndarray) -> Dict[str, float]:
 
     boundary_f1 = _boundary_f1_score(boundary_pred, boundary_target)
     hausdorff = _hausdorff_distance(boundary_pred.astype(np.uint8), boundary_target.astype(np.uint8))
+    asd, assd, hd95 = _surface_metrics(
+        boundary_pred.astype(np.uint8),
+        boundary_target.astype(np.uint8),
+    )
 
     return {
         "dice": float(dice),
@@ -107,6 +111,9 @@ def _compute_metrics(gt: np.ndarray, pred_prob: np.ndarray) -> Dict[str, float]:
         "mae": float(mae),
         "boundary_f1": float(boundary_f1),
         "hausdorff": float(hausdorff),
+        "hd95": float(hd95),
+        "asd": float(asd),
+        "assd": float(assd),
     }
 
 
@@ -178,6 +185,9 @@ def main() -> None:
         "mae": _mean([item["mae"] for item in per_image]),
         "boundary_f1": _mean([item["boundary_f1"] for item in per_image]),
         "hausdorff": _mean([item["hausdorff"] for item in per_image]),
+        "hd95": _mean([item["hd95"] for item in per_image]),
+        "asd": _mean([item["asd"] for item in per_image]),
+        "assd": _mean([item["assd"] for item in per_image]),
     }
 
     dataset_name = os.path.basename(os.path.normpath(args.dataset_root)) or "dataset"
@@ -206,6 +216,9 @@ def main() -> None:
         "mae",
         "boundary_f1",
         "hausdorff",
+        "hd95",
+        "asd",
+        "assd",
     ]
     with open(csv_path, "w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)

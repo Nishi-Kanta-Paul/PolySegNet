@@ -18,6 +18,8 @@ LOWER_IS_BETTER = {
     "hd95",
     "hausdorff",
     "hausdorff distance",
+    "asd",
+    "assd",
     "params(m)",
     "flops(g)",
 }

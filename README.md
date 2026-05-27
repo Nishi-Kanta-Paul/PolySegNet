@@ -74,6 +74,72 @@ python src/main.py --mode train --debug
 bash scripts/run_ablation.sh
 ```
 
+## Evaluation
+
+```bash
+python src/main.py --mode eval \
+	--config configs/baselines/bgdsf_full.yaml \
+	--dataset-root data/Kvasir-SEG --image-dir images --mask-dir masks
+```
+
+## Easy Baselines
+
+```bash
+bash scripts/run_easy_baselines.sh \
+	--dataset-root data/Kvasir-SEG --image-dir images --mask-dir masks
+```
+
+## Complexity Analysis
+
+```bash
+python scripts/compute_complexity.py \
+	--configs configs/baselines/smp_unet.yaml \
+	configs/baselines/smp_unetpp.yaml \
+	configs/baselines/bgdsf_full.yaml
+```
+
+## Statistical Testing
+
+```bash
+python scripts/build_per_image_results.py
+python scripts/statistical_test.py \
+	--input-csv outputs/tables/per_image_results.csv \
+	--compare-all-to "BGD-SF PolySegNet" \
+	--metrics dice iou precision recall f_measure mae boundary_f1 hausdorff hd95 asd assd
+```
+
+## Multi-Seed Experiments
+
+```bash
+bash scripts/run_multiseed_bgdsf.sh \
+	--dataset-root data/Kvasir-SEG --image-dir images --mask-dir masks
+python scripts/summarize_multiseed_results.py
+```
+
+## Figure Generation
+
+```bash
+bash scripts/make_all_figures.sh \
+	--fig1-cases-file cases.json \
+	--fig1-prev-ckpt PATH --fig1-ours-ckpt PATH \
+	--fig2-image-dir PATH --fig2-mask-dir PATH --fig2-ckpt PATH \
+	--fig3-ckpt PATH --fig3-images img1.png,img2.png \
+	--fig4-csv PATH --fig5-csv PATH --fig5-train-dataset NAME \
+	--fig6-images img1.png,img2.png \
+	--fig6-ckpt-without PATH --fig6-ckpt-with PATH \
+	--fig7-ckpt PATH --fig7-image-dir PATH --fig7-mask-dir PATH \
+	--fig8-csv PATH
+
+python scripts/make_figure_architecture.py
+python scripts/make_figure_module_diagram.py
+```
+
+## Seed Policy
+
+- Baselines: fixed seed 42
+- Ablation: fixed seed 42
+- Final BGD-SF: seeds 42, 123, 2025
+
 ## Inference
 
 Single image:

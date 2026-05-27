@@ -31,6 +31,9 @@ METRIC_COLUMNS = [
     "mae",
     "boundary_f1",
     "hausdorff",
+    "hd95",
+    "asd",
+    "assd",
 ]
 
 

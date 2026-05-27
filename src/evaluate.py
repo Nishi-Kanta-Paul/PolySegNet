@@ -319,6 +319,47 @@ def _hausdorff_distance(pred_boundary: np.ndarray, target_boundary: np.ndarray) 
     return max(forward, backward)
 
 
+def _surface_distances(
+    pred_boundary: np.ndarray,
+    target_boundary: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, float]:
+    pred = pred_boundary.astype(np.uint8)
+    target = target_boundary.astype(np.uint8)
+    height, width = pred.shape
+    diag = float(np.hypot(height, width))
+
+    pred_count = int(pred.sum())
+    target_count = int(target.sum())
+    if pred_count == 0 and target_count == 0:
+        return np.array([0.0], dtype=np.float32), np.array([0.0], dtype=np.float32), diag
+    if pred_count == 0 or target_count == 0:
+        return np.array([diag], dtype=np.float32), np.array([diag], dtype=np.float32), diag
+
+    dist_to_target = cv2.distanceTransform(1 - target, cv2.DIST_L2, 3)
+    dist_to_pred = cv2.distanceTransform(1 - pred, cv2.DIST_L2, 3)
+    d_pred = dist_to_target[pred == 1]
+    d_target = dist_to_pred[target == 1]
+    return d_pred, d_target, diag
+
+
+def _surface_metrics(
+    pred_boundary: np.ndarray,
+    target_boundary: np.ndarray,
+) -> tuple[float, float, float]:
+    d_pred, d_target, diag = _surface_distances(pred_boundary, target_boundary)
+
+    if d_pred.size == 0 and d_target.size == 0:
+        return 0.0, 0.0, 0.0
+    if d_pred.size == 0 or d_target.size == 0:
+        return diag, diag, diag
+
+    combined = np.concatenate([d_pred, d_target])
+    asd = float(np.mean(d_pred))
+    assd = float(np.mean(combined))
+    hd95 = float(np.percentile(combined, 95)) if combined.size else diag
+    return asd, assd, hd95
+
+
 def _load_checkpoint(model: nn.Module, checkpoint_path: str, device: torch.device) -> None:
     if not checkpoint_path:
         raise FileNotFoundError("Checkpoint path is required for evaluation.")
@@ -514,6 +555,10 @@ def _evaluate_dataset(
                     boundary_pred_np.astype(np.uint8),
                     boundary_target_np.astype(np.uint8),
                 )
+                asd, assd, hd95 = _surface_metrics(
+                    boundary_pred_np.astype(np.uint8),
+                    boundary_target_np.astype(np.uint8),
+                )
 
                 per_image.append(
                     {
@@ -528,6 +573,9 @@ def _evaluate_dataset(
                         "f_measure": float(f_measure[i].item()),
                         "boundary_f1": float(boundary_f1),
                         "hausdorff": float(hausdorff),
+                        "hd95": float(hd95),
+                        "asd": float(asd),
+                        "assd": float(assd),
                     }
                 )
 
@@ -541,6 +589,9 @@ def _evaluate_dataset(
         "f_measure": _mean_metric(per_image, "f_measure"),
         "boundary_f1": _mean_metric(per_image, "boundary_f1"),
         "hausdorff": _mean_metric(per_image, "hausdorff"),
+        "hd95": _mean_metric(per_image, "hd95"),
+        "asd": _mean_metric(per_image, "asd"),
+        "assd": _mean_metric(per_image, "assd"),
     }
 
     results_path = os.path.join(output_dir, "results.json")
@@ -559,6 +610,9 @@ def _evaluate_dataset(
         "f_measure",
         "boundary_f1",
         "hausdorff",
+        "hd95",
+        "asd",
+        "assd",
     ]
     with open(csv_path, "w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -674,6 +728,9 @@ def evaluate(cfg: Config) -> None:
             "f_measure": _mean_metric(overall_per_image, "f_measure"),
             "boundary_f1": _mean_metric(overall_per_image, "boundary_f1"),
             "hausdorff": _mean_metric(overall_per_image, "hausdorff"),
+            "hd95": _mean_metric(overall_per_image, "hd95"),
+            "asd": _mean_metric(overall_per_image, "asd"),
+            "assd": _mean_metric(overall_per_image, "assd"),
         }
         summary_path = os.path.join(evaluation_root, "summary.json")
         save_json(
