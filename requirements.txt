@@ -7,6 +7,8 @@ pyyaml
 tqdm
 numpy
 scikit-learn
+scipy
 matplotlib
 pillow
 segmentation-models-pytorch
+thop

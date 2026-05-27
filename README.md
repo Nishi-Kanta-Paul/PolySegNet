@@ -120,6 +120,17 @@ outputs/figures/                  — final paper-ready qualitative figures
 - Debug mode runs with synthetic data.
 - Pretrained EfficientNet weights download only when pretrained=True and cache is missing.
 
+## Statistical Testing
+
+- Wilcoxon signed-rank test is used because comparisons are paired per image.
+- p < 0.05 is treated as statistically significant.
+- Interpret p-values alongside effect size rather than alone.
+
+## Multi-Seed Experiments
+
+- Multi-seed experiments test training stability.
+- Reported mean ± standard deviation is computed across three independent runs with seeds 42, 123, and 2025.
+
 ## Citation / Notes
 
 If you use this code in your research, please cite the original dataset sources and mention PolySegNet as the segmentation framework.
