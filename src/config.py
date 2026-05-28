@@ -31,6 +31,7 @@ class Config:
     seed: int = 42
     device: str = "cuda"
     model_name: str = "bgdsf_polysegnet"
+    bgdsf_encoder_name: str = "tf_efficientnet_b4"
     pretrained: bool = True
     smp_encoder_name: str = "resnet34"
     smp_encoder_weights: str = "imagenet"
@@ -134,6 +135,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--device", default=None)
     parser.add_argument("--model-name", default=None)
+    parser.add_argument("--bgdsf-encoder-name", default=None)
     parser.add_argument("--smp-encoder-name", default=None)
     parser.add_argument("--smp-encoder-weights", default=None)
     parser.add_argument("--smp-in-channels", type=int, default=None)
@@ -227,6 +229,7 @@ def config_from_args(args: argparse.Namespace) -> Config:
         "seed",
         "device",
         "model_name",
+        "bgdsf_encoder_name",
         "smp_encoder_name",
         "smp_encoder_weights",
         "smp_in_channels",

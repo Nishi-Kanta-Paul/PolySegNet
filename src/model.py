@@ -513,8 +513,9 @@ def build_model(config) -> nn.Module:
         "bgdsf",
         "original_msca",
     }:
+        encoder_name = getattr(config, "bgdsf_encoder_name", None) or "tf_efficientnet_b4"
         return BGDSFPolySegNet(
-            encoder_name="tf_efficientnet_b4",
+            encoder_name=encoder_name,
             pretrained=pretrained,
             unified_channels=unified_channels,
             use_msca=use_msca,

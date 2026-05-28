@@ -116,6 +116,48 @@ bash scripts/run_multiseed_bgdsf.sh \
 python scripts/summarize_multiseed_results.py
 ```
 
+## Optional Sensitivity Studies
+
+These studies are optional and should be run only after the main experiments. They
+use fixed seed 42 to keep the train/val/test split identical, and should be reported
+only if the results are useful and space allows.
+
+- Boundary loss weight sensitivity: justifies the selected boundary supervision
+  strength by showing how it impacts Dice/IoU and boundary-aware metrics.
+- Input size sensitivity: shows the accuracy-efficiency tradeoff across resolutions.
+- Backbone sensitivity: checks if BGD-SF remains stable across representative encoders.
+
+Commands:
+
+```bash
+bash scripts/run_sensitivity_boundary_weight.sh \
+	--dataset-root data/Kvasir-SEG --image-dir images --mask-dir masks \
+	--epochs 50 --batch-size 8 --image-size 352
+
+bash scripts/run_sensitivity_input_size.sh \
+	--dataset-root data/Kvasir-SEG --image-dir images --mask-dir masks \
+	--epochs 50 --batch-size 8
+
+bash scripts/run_sensitivity_backbone.sh \
+	--dataset-root data/Kvasir-SEG --image-dir images --mask-dir masks \
+	--epochs 50 --batch-size 8 --image-size 352
+
+python scripts/collect_sensitivity_results.py \
+	--dataset-roots data/Kvasir-SEG
+```
+
+Complexity per input size can be computed separately:
+
+```bash
+python scripts/compute_complexity.py \
+	--configs configs/baselines/bgdsf_full.yaml \
+	--image-size 256
+```
+
+Note: backbone sensitivity relies on timm encoders that expose at least five feature
+maps via features_only. If a backbone fails, update the BGD-SF encoder adapter to
+support 4-stage backbones before rerunning.
+
 ## Figure Generation
 
 ```bash
@@ -133,6 +175,9 @@ bash scripts/make_all_figures.sh \
 python scripts/make_figure_architecture.py
 python scripts/make_figure_module_diagram.py
 ```
+
+Training curves help check convergence, stability, and possible overfitting. These
+figures can be placed in the supplementary material or results section as needed.
 
 ## Seed Policy
 
