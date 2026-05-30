@@ -181,6 +181,42 @@ def _extract_metrics(results: Dict[str, object]) -> Dict[str, float]:
     }
 
 
+def _load_eval_summary(exp_name: str) -> Dict[str, float]:
+    eval_dir = os.path.join("experiments", exp_name, "evaluation")
+    summary_path = os.path.join(eval_dir, "summary.json")
+    results_path = os.path.join(eval_dir, "results.json")
+
+    if os.path.isfile(summary_path):
+        payload = load_json(summary_path)
+        if isinstance(payload, dict):
+            overall = payload.get("overall")
+            if isinstance(overall, dict):
+                return dict(overall)
+            datasets = payload.get("datasets")
+            if isinstance(datasets, dict) and datasets:
+                first = next(iter(datasets.values()))
+                if isinstance(first, dict):
+                    return dict(first)
+
+    if os.path.isfile(results_path):
+        payload = load_json(results_path)
+        summary = payload.get("summary", {}) if isinstance(payload, dict) else {}
+        if isinstance(summary, dict):
+            return dict(summary)
+
+    return {}
+
+
+def _pick_metric(
+    eval_metrics: Dict[str, float],
+    train_metrics: Dict[str, float],
+    key: str,
+) -> float:
+    if isinstance(eval_metrics, dict) and key in eval_metrics:
+        return float(eval_metrics.get(key, 0.0))
+    return float(train_metrics.get(key, 0.0))
+
+
 def _format_flag(enabled: bool) -> str:
     return CHECK if enabled else DASH
 
@@ -212,7 +248,10 @@ def compare_results() -> None:
         if not os.path.isfile(results_path):
             print(f"Warning: missing results for {exp_name}")
             continue
-        metrics = _extract_metrics(load_json(results_path))
+        train_metrics = _extract_metrics(load_json(results_path))
+        eval_metrics = _load_eval_summary(exp_name)
+        if not eval_metrics:
+            print(f"Warning: missing evaluation results for {exp_name}")
         params_m = _count_params(variant["config"])
         rows.append(
             [
@@ -221,12 +260,17 @@ def compare_results() -> None:
                 _format_flag(variant["bgsagf"]),
                 _format_flag(variant["mbgh"]),
                 _format_flag(variant["freq_aug"]),
-                f"{metrics['dice']:.4f}",
-                f"{metrics['iou']:.4f}",
-                f"{metrics['precision']:.4f}",
-                f"{metrics['recall']:.4f}",
-                f"{metrics['mae']:.4f}",
-                f"{metrics['f_measure']:.4f}",
+                f"{_pick_metric(eval_metrics, train_metrics, 'dice'):.4f}",
+                f"{_pick_metric(eval_metrics, train_metrics, 'iou'):.4f}",
+                f"{_pick_metric(eval_metrics, train_metrics, 'precision'):.4f}",
+                f"{_pick_metric(eval_metrics, train_metrics, 'recall'):.4f}",
+                f"{_pick_metric(eval_metrics, train_metrics, 'mae'):.4f}",
+                f"{_pick_metric(eval_metrics, train_metrics, 'f_measure'):.4f}",
+                f"{_pick_metric(eval_metrics, train_metrics, 'boundary_f1'):.4f}",
+                f"{_pick_metric(eval_metrics, train_metrics, 'hausdorff'):.4f}",
+                f"{_pick_metric(eval_metrics, train_metrics, 'hd95'):.4f}",
+                f"{_pick_metric(eval_metrics, train_metrics, 'asd'):.4f}",
+                f"{_pick_metric(eval_metrics, train_metrics, 'assd'):.4f}",
                 f"{params_m:.2f}",
             ]
         )
@@ -250,6 +294,11 @@ def compare_results() -> None:
                 "Recall",
                 "MAE",
                 "F-measure",
+                "Boundary F1",
+                "Hausdorff",
+                "HD95",
+                "ASD",
+                "ASSD",
                 "Params(M)",
             ]
         )
@@ -258,10 +307,10 @@ def compare_results() -> None:
     md_path = os.path.join(output_dir, "comparison_results.md")
     with open(md_path, "w", encoding="utf-8") as handle:
         handle.write(
-            "| Model | CMSCA | BG-SAGF | MBGH | FreqAug | Dice | IoU | Precision | Recall | MAE | F-measure | Params(M) |\n"
+            "| Model | CMSCA | BG-SAGF | MBGH | FreqAug | Dice | IoU | Precision | Recall | MAE | F-measure | Boundary F1 | Hausdorff | HD95 | ASD | ASSD | Params(M) |\n"
         )
         handle.write(
-            "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"
         )
         for row in rows:
             handle.write("| " + " | ".join(row) + " |\n")
