@@ -167,6 +167,11 @@ def main() -> None:
             params_m = None
 
         if not per_dataset:
+            if "experiment" in spec:
+                print(
+                    "Evaluation output missing for "
+                    f"{exp_name}. Please run evaluation using best.pth."
+                )
             pending.append(method_name)
             dataset_list = dataset_names_hint or ["dataset"]
             for dataset_name in dataset_list:

@@ -360,7 +360,11 @@ def _surface_metrics(
     return asd, assd, hd95
 
 
-def _load_checkpoint(model: nn.Module, checkpoint_path: str, device: torch.device) -> None:
+def _load_checkpoint(
+    model: nn.Module,
+    checkpoint_path: str,
+    device: torch.device,
+) -> dict:
     if not checkpoint_path:
         raise FileNotFoundError("Checkpoint path is required for evaluation.")
     if not os.path.isfile(checkpoint_path):
@@ -368,6 +372,7 @@ def _load_checkpoint(model: nn.Module, checkpoint_path: str, device: torch.devic
     checkpoint = torch.load(checkpoint_path, map_location=device)
     state_dict = checkpoint.get("model_state_dict", checkpoint)
     model.load_state_dict(state_dict, strict=True)
+    return checkpoint if isinstance(checkpoint, dict) else {}
 
 
 def _collect_dataset_roots(cfg: Config) -> List[str]:
@@ -688,7 +693,17 @@ def evaluate(cfg: Config) -> None:
 
     model = build_model(cfg).to(device)
     model.eval()
-    _load_checkpoint(model, checkpoint_path, device)
+    checkpoint_info = _load_checkpoint(model, checkpoint_path, device)
+    print(f"Evaluating checkpoint: {checkpoint_path}")
+    if checkpoint_info:
+        epoch = checkpoint_info.get("epoch")
+        best_dice = checkpoint_info.get("best_dice")
+        if epoch is not None or best_dice is not None:
+            epoch_str = "" if epoch is None else f"epoch={int(epoch) + 1}"
+            best_str = "" if best_dice is None else f"best_dice={float(best_dice):.6f}"
+            extra = " ".join(item for item in (epoch_str, best_str) if item)
+            if extra:
+                print(f"Checkpoint info: {extra}")
 
     dataset_roots = _collect_dataset_roots(cfg)
     if not dataset_roots:

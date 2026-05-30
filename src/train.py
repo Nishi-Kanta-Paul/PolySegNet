@@ -223,6 +223,7 @@ def train(cfg: Config) -> None:
 
     start_epoch = 0
     best_dice = 0.0
+    best_epoch = 0
     if cfg.resume_checkpoint:
         if not os.path.isfile(cfg.resume_checkpoint):
             raise FileNotFoundError(
@@ -292,6 +293,7 @@ def train(cfg: Config) -> None:
 
         if val_dice > best_dice:
             best_dice = val_dice
+            best_epoch = epoch + 1
             _save_checkpoint(
                 cfg.best_checkpoint,
                 model,
@@ -332,6 +334,9 @@ def train(cfg: Config) -> None:
     results_path = os.path.join(base_dir, "results.json")
     results = {
         "best_dice": best_dice,
+        "best_val_dice": best_dice,
+        "best_epoch": best_epoch,
+        "best_checkpoint_path": cfg.best_checkpoint,
         "final_epoch": cfg.epochs,
         "final_metrics": log_entries[-1] if log_entries else {},
     }

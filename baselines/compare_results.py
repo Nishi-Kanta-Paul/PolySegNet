@@ -19,7 +19,7 @@ DASH = "–"
 VARIANTS = [
     {
         "experiment": "effb4_unet_baseline",
-        "label": "EffB4 U-Net",
+        "label": "EffB4 encoder-decoder baseline",
         "cmsca": False,
         "bgsagf": False,
         "mbgh": False,
@@ -164,23 +164,6 @@ VARIANTS = [
 ]
 
 
-def _extract_metrics(results: Dict[str, object]) -> Dict[str, float]:
-    metrics = results.get("final_metrics", {}) if isinstance(results, dict) else {}
-    if not isinstance(metrics, dict):
-        metrics = {}
-
-    return {
-        "dice": float(metrics.get("val_dice", results.get("best_dice", 0.0))),
-        "iou": float(metrics.get("val_iou", 0.0)),
-        "precision": float(metrics.get("val_precision", 0.0)),
-        "recall": float(metrics.get("val_recall", 0.0)),
-        "mae": float(metrics.get("val_mae", 0.0)),
-        "f_measure": float(
-            metrics.get("val_fbeta", metrics.get("val_fmeasure", metrics.get("val_f1", 0.0)))
-        ),
-    }
-
-
 def _load_eval_summary(exp_name: str) -> Dict[str, float]:
     eval_dir = os.path.join("experiments", exp_name, "evaluation")
     summary_path = os.path.join(eval_dir, "summary.json")
@@ -207,14 +190,10 @@ def _load_eval_summary(exp_name: str) -> Dict[str, float]:
     return {}
 
 
-def _pick_metric(
-    eval_metrics: Dict[str, float],
-    train_metrics: Dict[str, float],
-    key: str,
-) -> float:
-    if isinstance(eval_metrics, dict) and key in eval_metrics:
-        return float(eval_metrics.get(key, 0.0))
-    return float(train_metrics.get(key, 0.0))
+def _format_metric(metrics: Dict[str, float], key: str) -> str:
+    if not metrics or key not in metrics:
+        return ""
+    return f"{float(metrics.get(key, 0.0)):.4f}"
 
 
 def _format_flag(enabled: bool) -> str:
@@ -244,14 +223,12 @@ def compare_results() -> None:
     rows: List[List[str]] = []
     for variant in VARIANTS:
         exp_name = variant["experiment"]
-        results_path = os.path.join("experiments", exp_name, "results.json")
-        if not os.path.isfile(results_path):
-            print(f"Warning: missing results for {exp_name}")
-            continue
-        train_metrics = _extract_metrics(load_json(results_path))
         eval_metrics = _load_eval_summary(exp_name)
         if not eval_metrics:
-            print(f"Warning: missing evaluation results for {exp_name}")
+            print(
+                "Evaluation output missing for "
+                f"{exp_name}. Please run evaluation using best.pth."
+            )
         params_m = _count_params(variant["config"])
         rows.append(
             [
@@ -260,17 +237,17 @@ def compare_results() -> None:
                 _format_flag(variant["bgsagf"]),
                 _format_flag(variant["mbgh"]),
                 _format_flag(variant["freq_aug"]),
-                f"{_pick_metric(eval_metrics, train_metrics, 'dice'):.4f}",
-                f"{_pick_metric(eval_metrics, train_metrics, 'iou'):.4f}",
-                f"{_pick_metric(eval_metrics, train_metrics, 'precision'):.4f}",
-                f"{_pick_metric(eval_metrics, train_metrics, 'recall'):.4f}",
-                f"{_pick_metric(eval_metrics, train_metrics, 'mae'):.4f}",
-                f"{_pick_metric(eval_metrics, train_metrics, 'f_measure'):.4f}",
-                f"{_pick_metric(eval_metrics, train_metrics, 'boundary_f1'):.4f}",
-                f"{_pick_metric(eval_metrics, train_metrics, 'hausdorff'):.4f}",
-                f"{_pick_metric(eval_metrics, train_metrics, 'hd95'):.4f}",
-                f"{_pick_metric(eval_metrics, train_metrics, 'asd'):.4f}",
-                f"{_pick_metric(eval_metrics, train_metrics, 'assd'):.4f}",
+                _format_metric(eval_metrics, "dice"),
+                _format_metric(eval_metrics, "iou"),
+                _format_metric(eval_metrics, "precision"),
+                _format_metric(eval_metrics, "recall"),
+                _format_metric(eval_metrics, "mae"),
+                _format_metric(eval_metrics, "f_measure"),
+                _format_metric(eval_metrics, "boundary_f1"),
+                _format_metric(eval_metrics, "hausdorff"),
+                _format_metric(eval_metrics, "hd95"),
+                _format_metric(eval_metrics, "asd"),
+                _format_metric(eval_metrics, "assd"),
                 f"{params_m:.2f}",
             ]
         )
