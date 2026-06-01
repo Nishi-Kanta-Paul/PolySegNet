@@ -360,19 +360,42 @@ def _surface_metrics(
     return asd, assd, hd95
 
 
-def _load_checkpoint(
-    model: nn.Module,
-    checkpoint_path: str,
-    device: torch.device,
-) -> dict:
+def _read_checkpoint(checkpoint_path: str, device: torch.device) -> dict:
     if not checkpoint_path:
         raise FileNotFoundError("Checkpoint path is required for evaluation.")
     if not os.path.isfile(checkpoint_path):
         raise FileNotFoundError(f"Checkpoint not found: {checkpoint_path}")
     checkpoint = torch.load(checkpoint_path, map_location=device)
-    state_dict = checkpoint.get("model_state_dict", checkpoint)
+    return checkpoint if isinstance(checkpoint, dict) else {"model_state_dict": checkpoint}
+
+
+def _apply_checkpoint_config(cfg: Config, checkpoint_cfg: dict) -> None:
+    if not isinstance(checkpoint_cfg, dict):
+        return
+    keys = [
+        "model_name",
+        "bgdsf_encoder_name",
+        "pretrained",
+        "unified_channels",
+        "use_msca",
+        "use_csaf",
+        "use_mbgh",
+        "use_boundary_loss",
+        "use_dynamic_weighting",
+        "use_boundary_guidance",
+        "use_multilevel_boundary",
+        "use_freq_aug",
+        "boundary_kernel_size",
+        "aux_boundary_weight",
+    ]
+    for key in keys:
+        if key in checkpoint_cfg:
+            setattr(cfg, key, checkpoint_cfg.get(key))
+
+
+def _load_state_dict(model: nn.Module, checkpoint_info: dict) -> None:
+    state_dict = checkpoint_info.get("model_state_dict", checkpoint_info)
     model.load_state_dict(state_dict, strict=True)
-    return checkpoint if isinstance(checkpoint, dict) else {}
 
 
 def _collect_dataset_roots(cfg: Config) -> List[str]:
@@ -691,9 +714,22 @@ def evaluate(cfg: Config) -> None:
     evaluation_root = os.path.join(base_dir, "evaluation")
     ensure_dir(evaluation_root)
 
+    checkpoint_info = _read_checkpoint(checkpoint_path, device)
+    checkpoint_cfg = checkpoint_info.get("config", {}) if isinstance(checkpoint_info, dict) else {}
+    if checkpoint_cfg:
+        _apply_checkpoint_config(cfg, checkpoint_cfg)
+        print(
+            "Applied checkpoint config: "
+            f"model_name={getattr(cfg, 'model_name', None)}, "
+            f"use_msca={getattr(cfg, 'use_msca', None)}, "
+            f"use_csaf={getattr(cfg, 'use_csaf', None)}, "
+            f"use_mbgh={getattr(cfg, 'use_mbgh', None)}, "
+            f"use_freq_aug={getattr(cfg, 'use_freq_aug', None)}"
+        )
+
     model = build_model(cfg).to(device)
     model.eval()
-    checkpoint_info = _load_checkpoint(model, checkpoint_path, device)
+    _load_state_dict(model, checkpoint_info)
     print(f"Evaluating checkpoint: {checkpoint_path}")
     if checkpoint_info:
         epoch = checkpoint_info.get("epoch")
