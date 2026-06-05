@@ -10,16 +10,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 EXPECTED_ORDER = [
-    "EfficientNet-B4 U-Net Baseline",
-    "+ Original MSCA (parallel)",
-    "+ Cascaded CMSCA (static)",
-    "+ BGD-CMSCA (dynamic)",
-    "+ SAGF (plain)",
-    "+ BG-SAGF",
-    "+ MBGH",
-    "Full BGD-SF (FreqAug)",
+    "EffB4 encoder-decoder baseline",
+    "EffB4 + Original MSCA",
+    "EffB4 + CMSCA (static)",
+    "EffB4 + BGD-CMSCA",
+    "BGD-CMSCA + SAGF (plain)",
+    "BGD-CMSCA + BG-SAGF",
+    "BGD-SF (no FreqAug)",
+    "BGD-SF (FreqAug)",
 ]
-FULL_MODEL_LABEL = "Full BGD-SF (FreqAug)"
+FULL_MODEL_LABEL = "BGD-SF (FreqAug)"
 
 
 def _load_csv(path: str) -> Dict[str, Dict[str, float]]:

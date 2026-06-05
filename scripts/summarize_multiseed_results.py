@@ -26,16 +26,16 @@ METRICS = [
     "recall",
     "f_measure",
     "mae",
-    "boundary_f1",
-    "hausdorff",
+    "mask_boundary_f1",
+    "mask_hd",
 ]
 
 PAPER_METRICS = [
     "dice",
     "iou",
     "mae",
-    "boundary_f1",
-    "hausdorff",
+    "mask_boundary_f1",
+    "mask_hd",
 ]
 
 

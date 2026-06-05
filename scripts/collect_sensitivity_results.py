@@ -45,11 +45,11 @@ FULL_FIELDS = [
     "recall",
     "f_measure",
     "mae",
-    "boundary_f1",
-    "hausdorff",
-    "hd95",
-    "asd",
-    "assd",
+    "mask_boundary_f1",
+    "mask_hd",
+    "mask_hd95",
+    "mask_asd",
+    "mask_assd",
     "params_m",
     "flops_g",
     "fps",
@@ -62,9 +62,9 @@ PAPER_FIELDS = [
     "dice",
     "iou",
     "mae",
-    "boundary_f1",
-    "hd95",
-    "assd",
+    "mask_boundary_f1",
+    "mask_hd95",
+    "mask_assd",
     "params_m",
     "flops_g",
     "fps",
@@ -189,7 +189,11 @@ def _collect_rows(
             params_m = float(params_from_complexity)
 
         if not per_dataset:
-            print(f"Warning: missing evaluation results for {exp_name}")
+            print(
+                f"WARNING: Evaluation output missing for {exp_name}. "
+                "Please run evaluation using best.pth. "
+                "Metrics will be empty — no fallback to training metrics."
+            )
             dataset_list = inferred_names or ["dataset"]
             for dataset_name in dataset_list:
                 full_rows.append(
@@ -204,11 +208,11 @@ def _collect_rows(
                         "recall": "",
                         "f_measure": "",
                         "mae": "",
-                        "boundary_f1": "",
-                        "hausdorff": "",
-                        "hd95": "",
-                        "asd": "",
-                        "assd": "",
+                        "mask_boundary_f1": "",
+                        "mask_hd": "",
+                        "mask_hd95": "",
+                        "mask_asd": "",
+                        "mask_assd": "",
                         "params_m": _format_params(params_m),
                         "flops_g": _format_number(
                             float(flops_g), 4
@@ -226,9 +230,9 @@ def _collect_rows(
                         "dice": "",
                         "iou": "",
                         "mae": "",
-                        "boundary_f1": "",
-                        "hd95": "",
-                        "assd": "",
+                        "mask_boundary_f1": "",
+                        "mask_hd95": "",
+                        "mask_assd": "",
                         "params_m": _format_params(params_m),
                         "flops_g": _format_number(
                             float(flops_g), 4
@@ -251,11 +255,11 @@ def _collect_rows(
                     "recall": _format_number(metrics.get("recall")),
                     "f_measure": _format_number(metrics.get("f_measure")),
                     "mae": _format_number(metrics.get("mae")),
-                    "boundary_f1": _format_number(metrics.get("boundary_f1")),
-                    "hausdorff": _format_number(metrics.get("hausdorff")),
-                    "hd95": _format_number(metrics.get("hd95")),
-                    "asd": _format_number(metrics.get("asd")),
-                    "assd": _format_number(metrics.get("assd")),
+                    "mask_boundary_f1": _format_number(metrics.get("mask_boundary_f1")),
+                    "mask_hd": _format_number(metrics.get("mask_hd")),
+                    "mask_hd95": _format_number(metrics.get("mask_hd95")),
+                    "mask_asd": _format_number(metrics.get("mask_asd")),
+                    "mask_assd": _format_number(metrics.get("mask_assd")),
                     "params_m": _format_params(params_m),
                     "flops_g": _format_number(
                         float(flops_g), 4
@@ -274,9 +278,9 @@ def _collect_rows(
                     "dice": _format_number(metrics.get("dice")),
                     "iou": _format_number(metrics.get("iou")),
                     "mae": _format_number(metrics.get("mae")),
-                    "boundary_f1": _format_number(metrics.get("boundary_f1")),
-                    "hd95": _format_number(metrics.get("hd95")),
-                    "assd": _format_number(metrics.get("assd")),
+                    "mask_boundary_f1": _format_number(metrics.get("mask_boundary_f1")),
+                    "mask_hd95": _format_number(metrics.get("mask_hd95")),
+                    "mask_assd": _format_number(metrics.get("mask_assd")),
                     "params_m": _format_params(params_m),
                     "flops_g": _format_number(
                         float(flops_g), 4

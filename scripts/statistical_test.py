@@ -18,6 +18,8 @@ HIGHER_IS_BETTER = {
     "recall",
     "f_measure",
     "boundary_f1",
+    "mask_boundary_f1",
+    "head_boundary_f1",
     "fps",
 }
 
@@ -28,6 +30,10 @@ LOWER_IS_BETTER = {
     "hd95",
     "asd",
     "assd",
+    "mask_hd",
+    "mask_hd95",
+    "mask_asd",
+    "mask_assd",
     "flops_g",
     "params_m",
     "ms_per_image",

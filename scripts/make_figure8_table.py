@@ -18,13 +18,17 @@ LOWER_IS_BETTER = {
     "hd95",
     "asd",
     "assd",
+    "mask_hd",
+    "mask_hd95",
+    "mask_asd",
+    "mask_assd",
     "params_m",
     "flops_g",
 }
 
 METRIC_COLUMNS = [
     "dice", "iou", "precision", "recall", "f_measure", "mae",
-    "boundary_f1", "hausdorff", "hd95", "asd", "assd",
+    "mask_boundary_f1", "mask_hd", "mask_hd95", "mask_asd", "mask_assd",
     "params_m", "flops_g", "fps",
 ]
 

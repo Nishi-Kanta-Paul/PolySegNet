@@ -226,8 +226,9 @@ def compare_results() -> None:
         eval_metrics = _load_eval_summary(exp_name)
         if not eval_metrics:
             print(
-                "Evaluation output missing for "
-                f"{exp_name}. Please run evaluation using best.pth."
+                f"WARNING: Evaluation output missing for {exp_name}. "
+                "Please run evaluation using best.pth. "
+                "Metrics will be empty — no fallback to training metrics."
             )
         params_m = _count_params(variant["config"])
         rows.append(
@@ -243,11 +244,11 @@ def compare_results() -> None:
                 _format_metric(eval_metrics, "recall"),
                 _format_metric(eval_metrics, "mae"),
                 _format_metric(eval_metrics, "f_measure"),
-                _format_metric(eval_metrics, "boundary_f1"),
-                _format_metric(eval_metrics, "hausdorff"),
-                _format_metric(eval_metrics, "hd95"),
-                _format_metric(eval_metrics, "asd"),
-                _format_metric(eval_metrics, "assd"),
+                _format_metric(eval_metrics, "mask_boundary_f1"),
+                _format_metric(eval_metrics, "mask_hd"),
+                _format_metric(eval_metrics, "mask_hd95"),
+                _format_metric(eval_metrics, "mask_asd"),
+                _format_metric(eval_metrics, "mask_assd"),
                 f"{params_m:.2f}",
             ]
         )
@@ -271,11 +272,11 @@ def compare_results() -> None:
                 "Recall",
                 "MAE",
                 "F-measure",
-                "Boundary F1",
-                "Hausdorff",
-                "HD95",
-                "ASD",
-                "ASSD",
+                "mask_boundary_f1",
+                "mask_hd",
+                "mask_hd95",
+                "mask_asd",
+                "mask_assd",
                 "Params(M)",
             ]
         )
@@ -284,7 +285,7 @@ def compare_results() -> None:
     md_path = os.path.join(output_dir, "comparison_results.md")
     with open(md_path, "w", encoding="utf-8") as handle:
         handle.write(
-            "| Model | CMSCA | BG-SAGF | MBGH | FreqAug | Dice | IoU | Precision | Recall | MAE | F-measure | Boundary F1 | Hausdorff | HD95 | ASD | ASSD | Params(M) |\n"
+            "| Model | CMSCA | BG-SAGF | MBGH | FreqAug | Dice | IoU | Precision | Recall | MAE | F-measure | mask_boundary_f1 | mask_hd | mask_hd95 | mask_asd | mask_assd | Params(M) |\n"
         )
         handle.write(
             "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n"

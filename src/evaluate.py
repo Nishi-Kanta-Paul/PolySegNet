@@ -464,6 +464,7 @@ def _evaluate_dataset(
     eps = 1e-6
     boundary_kernel = int(getattr(cfg, "boundary_kernel_size", 3))
 
+    has_head_boundary = False
     per_image: List[Dict[str, object]] = []
     sample_index = 0
 
@@ -496,12 +497,19 @@ def _evaluate_dataset(
             preds = (probs >= threshold).float()
 
             boundary_target = generate_boundary_target(masks, kernel_size=boundary_kernel)
+
+            # Always derive boundary from predicted mask — fair across all models
+            mask_boundary_map = generate_boundary_target(preds, kernel_size=boundary_kernel)
+            mask_boundary_pred = (mask_boundary_map >= threshold).float()
+
+            # Head-based boundary for visualization; diagnostic only for MBGH models
             if boundary_logits is not None:
+                has_head_boundary = True
                 boundary_prob = torch.sigmoid(boundary_logits)
                 boundary_pred = (boundary_prob >= threshold).float()
             else:
-                boundary_prob = generate_boundary_target(preds, kernel_size=boundary_kernel)
-                boundary_pred = (boundary_prob >= threshold).float()
+                boundary_prob = mask_boundary_map
+                boundary_pred = mask_boundary_pred
 
             dims = tuple(range(1, preds.ndim))
             tp = torch.sum(preds * masks, dim=dims)
@@ -576,38 +584,47 @@ def _evaluate_dataset(
                     cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR),
                 )
 
-                boundary_pred_np = boundary_pred[i].detach().cpu().squeeze().numpy() > 0.5
                 boundary_target_np = boundary_target[i].detach().cpu().squeeze().numpy() > 0.5
-                boundary_f1 = _boundary_f1_score(boundary_pred_np, boundary_target_np)
-                hausdorff = _hausdorff_distance(
-                    boundary_pred_np.astype(np.uint8),
+
+                # Fair boundary metrics: always derived from the final predicted mask
+                mask_bpred_np = mask_boundary_pred[i].detach().cpu().squeeze().numpy() > 0.5
+                mask_bf1 = _boundary_f1_score(mask_bpred_np, boundary_target_np)
+                mask_hd_val = _hausdorff_distance(
+                    mask_bpred_np.astype(np.uint8),
                     boundary_target_np.astype(np.uint8),
                 )
-                asd, assd, hd95 = _surface_metrics(
-                    boundary_pred_np.astype(np.uint8),
+                mask_asd_val, mask_assd_val, mask_hd95_val = _surface_metrics(
+                    mask_bpred_np.astype(np.uint8),
                     boundary_target_np.astype(np.uint8),
                 )
 
-                per_image.append(
-                    {
-                        "image": stem,
-                        "image_path": image_path,
-                        "mask_path": mask_path,
-                        "dice": float(dice[i].item()),
-                        "iou": float(iou[i].item()),
-                        "precision": float(precision[i].item()),
-                        "recall": float(recall[i].item()),
-                        "mae": float(mae[i].item()),
-                        "f_measure": float(f_measure[i].item()),
-                        "boundary_f1": float(boundary_f1),
-                        "hausdorff": float(hausdorff),
-                        "hd95": float(hd95),
-                        "asd": float(asd),
-                        "assd": float(assd),
-                    }
-                )
+                # Diagnostic: head boundary F1 — MBGH models only, not used in comparison tables
+                head_bf1: Optional[float] = None
+                if boundary_logits is not None:
+                    head_bpred_np = boundary_pred[i].detach().cpu().squeeze().numpy() > 0.5
+                    head_bf1 = _boundary_f1_score(head_bpred_np, boundary_target_np)
 
-    summary = {
+                row: Dict[str, object] = {
+                    "image": stem,
+                    "image_path": image_path,
+                    "mask_path": mask_path,
+                    "dice": float(dice[i].item()),
+                    "iou": float(iou[i].item()),
+                    "precision": float(precision[i].item()),
+                    "recall": float(recall[i].item()),
+                    "mae": float(mae[i].item()),
+                    "f_measure": float(f_measure[i].item()),
+                    "mask_boundary_f1": float(mask_bf1),
+                    "mask_hd": float(mask_hd_val),
+                    "mask_hd95": float(mask_hd95_val),
+                    "mask_asd": float(mask_asd_val),
+                    "mask_assd": float(mask_assd_val),
+                }
+                if head_bf1 is not None:
+                    row["head_boundary_f1"] = float(head_bf1)
+                per_image.append(row)
+
+    summary: Dict[str, object] = {
         "num_samples": len(per_image),
         "dice": _mean_metric(per_image, "dice"),
         "iou": _mean_metric(per_image, "iou"),
@@ -615,12 +632,14 @@ def _evaluate_dataset(
         "recall": _mean_metric(per_image, "recall"),
         "mae": _mean_metric(per_image, "mae"),
         "f_measure": _mean_metric(per_image, "f_measure"),
-        "boundary_f1": _mean_metric(per_image, "boundary_f1"),
-        "hausdorff": _mean_metric(per_image, "hausdorff"),
-        "hd95": _mean_metric(per_image, "hd95"),
-        "asd": _mean_metric(per_image, "asd"),
-        "assd": _mean_metric(per_image, "assd"),
+        "mask_boundary_f1": _mean_metric(per_image, "mask_boundary_f1"),
+        "mask_hd": _mean_metric(per_image, "mask_hd"),
+        "mask_hd95": _mean_metric(per_image, "mask_hd95"),
+        "mask_asd": _mean_metric(per_image, "mask_asd"),
+        "mask_assd": _mean_metric(per_image, "mask_assd"),
     }
+    if has_head_boundary:
+        summary["head_boundary_f1"] = _mean_metric(per_image, "head_boundary_f1")
 
     results_path = os.path.join(output_dir, "results.json")
     save_json(results_path, {"summary": summary, "per_image": per_image})
@@ -636,12 +655,14 @@ def _evaluate_dataset(
         "recall",
         "mae",
         "f_measure",
-        "boundary_f1",
-        "hausdorff",
-        "hd95",
-        "asd",
-        "assd",
+        "mask_boundary_f1",
+        "mask_hd",
+        "mask_hd95",
+        "mask_asd",
+        "mask_assd",
     ]
+    if has_head_boundary:
+        fieldnames.append("head_boundary_f1")
     with open(csv_path, "w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
@@ -769,7 +790,7 @@ def evaluate(cfg: Config) -> None:
         overall_per_image.extend(per_image)
 
     if len(dataset_roots) > 1:
-        overall_summary = {
+        overall_summary: Dict[str, object] = {
             "num_samples": len(overall_per_image),
             "dice": _mean_metric(overall_per_image, "dice"),
             "iou": _mean_metric(overall_per_image, "iou"),
@@ -777,12 +798,14 @@ def evaluate(cfg: Config) -> None:
             "recall": _mean_metric(overall_per_image, "recall"),
             "mae": _mean_metric(overall_per_image, "mae"),
             "f_measure": _mean_metric(overall_per_image, "f_measure"),
-            "boundary_f1": _mean_metric(overall_per_image, "boundary_f1"),
-            "hausdorff": _mean_metric(overall_per_image, "hausdorff"),
-            "hd95": _mean_metric(overall_per_image, "hd95"),
-            "asd": _mean_metric(overall_per_image, "asd"),
-            "assd": _mean_metric(overall_per_image, "assd"),
+            "mask_boundary_f1": _mean_metric(overall_per_image, "mask_boundary_f1"),
+            "mask_hd": _mean_metric(overall_per_image, "mask_hd"),
+            "mask_hd95": _mean_metric(overall_per_image, "mask_hd95"),
+            "mask_asd": _mean_metric(overall_per_image, "mask_asd"),
+            "mask_assd": _mean_metric(overall_per_image, "mask_assd"),
         }
+        if any("head_boundary_f1" in row for row in overall_per_image):
+            overall_summary["head_boundary_f1"] = _mean_metric(overall_per_image, "head_boundary_f1")
         summary_path = os.path.join(evaluation_root, "summary.json")
         save_json(
             summary_path,

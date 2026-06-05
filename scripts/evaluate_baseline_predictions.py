@@ -95,9 +95,9 @@ def _compute_metrics(gt: np.ndarray, pred_prob: np.ndarray) -> Dict[str, float]:
     boundary_target = generate_boundary_target(gt_tensor, kernel_size=3).squeeze().numpy() > 0.5
     boundary_pred = generate_boundary_target(pred_tensor, kernel_size=3).squeeze().numpy() > 0.5
 
-    boundary_f1 = _boundary_f1_score(boundary_pred, boundary_target)
-    hausdorff = _hausdorff_distance(boundary_pred.astype(np.uint8), boundary_target.astype(np.uint8))
-    asd, assd, hd95 = _surface_metrics(
+    mask_boundary_f1 = _boundary_f1_score(boundary_pred, boundary_target)
+    mask_hd = _hausdorff_distance(boundary_pred.astype(np.uint8), boundary_target.astype(np.uint8))
+    mask_asd, mask_assd, mask_hd95 = _surface_metrics(
         boundary_pred.astype(np.uint8),
         boundary_target.astype(np.uint8),
     )
@@ -109,11 +109,11 @@ def _compute_metrics(gt: np.ndarray, pred_prob: np.ndarray) -> Dict[str, float]:
         "recall": float(recall),
         "f_measure": float(f_measure),
         "mae": float(mae),
-        "boundary_f1": float(boundary_f1),
-        "hausdorff": float(hausdorff),
-        "hd95": float(hd95),
-        "asd": float(asd),
-        "assd": float(assd),
+        "mask_boundary_f1": float(mask_boundary_f1),
+        "mask_hd": float(mask_hd),
+        "mask_hd95": float(mask_hd95),
+        "mask_asd": float(mask_asd),
+        "mask_assd": float(mask_assd),
     }
 
 
@@ -183,11 +183,11 @@ def main() -> None:
         "recall": _mean([item["recall"] for item in per_image]),
         "f_measure": _mean([item["f_measure"] for item in per_image]),
         "mae": _mean([item["mae"] for item in per_image]),
-        "boundary_f1": _mean([item["boundary_f1"] for item in per_image]),
-        "hausdorff": _mean([item["hausdorff"] for item in per_image]),
-        "hd95": _mean([item["hd95"] for item in per_image]),
-        "asd": _mean([item["asd"] for item in per_image]),
-        "assd": _mean([item["assd"] for item in per_image]),
+        "mask_boundary_f1": _mean([item["mask_boundary_f1"] for item in per_image]),
+        "mask_hd": _mean([item["mask_hd"] for item in per_image]),
+        "mask_hd95": _mean([item["mask_hd95"] for item in per_image]),
+        "mask_asd": _mean([item["mask_asd"] for item in per_image]),
+        "mask_assd": _mean([item["mask_assd"] for item in per_image]),
     }
 
     dataset_name = os.path.basename(os.path.normpath(args.dataset_root)) or "dataset"
@@ -214,11 +214,11 @@ def main() -> None:
         "recall",
         "f_measure",
         "mae",
-        "boundary_f1",
-        "hausdorff",
-        "hd95",
-        "asd",
-        "assd",
+        "mask_boundary_f1",
+        "mask_hd",
+        "mask_hd95",
+        "mask_asd",
+        "mask_assd",
     ]
     with open(csv_path, "w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)

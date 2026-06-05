@@ -78,7 +78,9 @@ def _load_prediction_results(path: str) -> Dict[str, Dict[str, float]]:
     payload = load_json(path)
     if not isinstance(payload, dict):
         return {}
-    summary = payload.get("summary", {}) if isinstance(summary, dict) else {}
+    summary = payload.get("summary", {})
+    if not isinstance(summary, dict):
+        summary = {}
     dataset_name = payload.get("dataset_name", "dataset")
     return {dataset_name: dict(summary)}
 
@@ -169,8 +171,9 @@ def main() -> None:
         if not per_dataset:
             if "experiment" in spec:
                 print(
-                    "Evaluation output missing for "
-                    f"{exp_name}. Please run evaluation using best.pth."
+                    f"WARNING: Evaluation output missing for {exp_name}. "
+                    "Please run evaluation using best.pth. "
+                    "Metrics will be empty — no fallback to training metrics."
                 )
             pending.append(method_name)
             dataset_list = dataset_names_hint or ["dataset"]
@@ -185,11 +188,11 @@ def main() -> None:
                         "recall": "",
                         "f_measure": "",
                         "mae": "",
-                        "boundary_f1": "",
-                        "hausdorff": "",
-                        "hd95": "",
-                        "asd": "",
-                        "assd": "",
+                        "mask_boundary_f1": "",
+                        "mask_hd": "",
+                        "mask_hd95": "",
+                        "mask_asd": "",
+                        "mask_assd": "",
                         "params_m": _format_params(params_m),
                         "flops_g": "",
                         "fps": "",
@@ -208,11 +211,11 @@ def main() -> None:
                     "recall": _format_number(metrics.get("recall")),
                     "f_measure": _format_number(metrics.get("f_measure")),
                     "mae": _format_number(metrics.get("mae")),
-                    "boundary_f1": _format_number(metrics.get("boundary_f1")),
-                    "hausdorff": _format_number(metrics.get("hausdorff")),
-                    "hd95": _format_number(metrics.get("hd95")),
-                    "asd": _format_number(metrics.get("asd")),
-                    "assd": _format_number(metrics.get("assd")),
+                    "mask_boundary_f1": _format_number(metrics.get("mask_boundary_f1")),
+                    "mask_hd": _format_number(metrics.get("mask_hd")),
+                    "mask_hd95": _format_number(metrics.get("mask_hd95")),
+                    "mask_asd": _format_number(metrics.get("mask_asd")),
+                    "mask_assd": _format_number(metrics.get("mask_assd")),
                     "params_m": _format_params(params_m),
                     "flops_g": "",
                     "fps": "",
@@ -230,11 +233,11 @@ def main() -> None:
         "recall",
         "f_measure",
         "mae",
-        "boundary_f1",
-        "hausdorff",
-        "hd95",
-        "asd",
-        "assd",
+        "mask_boundary_f1",
+        "mask_hd",
+        "mask_hd95",
+        "mask_asd",
+        "mask_assd",
         "params_m",
         "flops_g",
         "fps",
