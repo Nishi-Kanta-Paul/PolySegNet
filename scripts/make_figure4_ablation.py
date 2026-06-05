@@ -25,25 +25,17 @@ FULL_MODEL_LABEL = "Full BGD-SF (FreqAug)"
 def _load_csv(path: str) -> Dict[str, Dict[str, float]]:
     with open(path, "r", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
-        if "variant_name" not in reader.fieldnames:
-            raise ValueError("CSV must include 'variant_name' column.")
-
-        dataset_names: List[str] = []
-        for name in reader.fieldnames:
-            if name == "variant_name":
-                continue
-            if name.endswith("_dice"):
-                dataset_names.append(name[: -len("_dice")])
+        fieldnames = list(reader.fieldnames or [])
+        if "Model" not in fieldnames:
+            raise ValueError("CSV must include 'Model' column.")
+        if "Dice" not in fieldnames:
+            raise ValueError("CSV must include 'Dice' column.")
 
         results: Dict[str, Dict[str, float]] = {}
         for row in reader:
-            variant = row["variant_name"].strip()
-            results[variant] = {}
-            for dataset in dataset_names:
-                dice_key = f"{dataset}_dice"
-                if dice_key not in row:
-                    raise ValueError(f"Missing column: {dice_key}")
-                results[variant][dataset] = float(row[dice_key])
+            variant = row["Model"].strip()
+            dice_str = row.get("Dice", "").strip()
+            results[variant] = {"Dice": float(dice_str) if dice_str else float("nan")}
 
     missing = [name for name in EXPECTED_ORDER if name not in results]
     if missing:

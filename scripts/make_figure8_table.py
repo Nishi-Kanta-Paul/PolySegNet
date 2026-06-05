@@ -11,18 +11,22 @@ from typing import Dict, Iterable, List, Tuple
 import matplotlib.pyplot as plt
 
 
-SPECIAL_ROWS = ["Params(M)", "FLOPs(G)", "FPS"]
+SPECIAL_ROWS: List[str] = []
 LOWER_IS_BETTER = {
     "mae",
-    "hd",
-    "hd95",
     "hausdorff",
-    "hausdorff distance",
+    "hd95",
     "asd",
     "assd",
-    "params(m)",
-    "flops(g)",
+    "params_m",
+    "flops_g",
 }
+
+METRIC_COLUMNS = [
+    "dice", "iou", "precision", "recall", "f_measure", "mae",
+    "boundary_f1", "hausdorff", "hd95", "asd", "assd",
+    "params_m", "flops_g", "fps",
+]
 
 
 @dataclass(frozen=True)
@@ -36,20 +40,27 @@ class Record:
 def _read_csv(path: str) -> List[Record]:
     with open(path, "r", encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
-        required = {"method_name", "dataset_name", "metric_name", "value"}
-        if not required.issubset(set(reader.fieldnames or [])):
-            missing = required.difference(set(reader.fieldnames or []))
+        fieldnames = set(reader.fieldnames or [])
+        required = {"method_name", "dataset_name"}
+        if not required.issubset(fieldnames):
+            missing = required.difference(fieldnames)
             raise ValueError(f"Missing required columns: {sorted(missing)}")
+
+        present_metrics = [col for col in METRIC_COLUMNS if col in fieldnames]
+        if not present_metrics:
+            raise ValueError(
+                f"CSV must contain at least one metric column from: {METRIC_COLUMNS}"
+            )
 
         records: List[Record] = []
         for row in reader:
             method = (row.get("method_name") or "").strip()
             dataset = (row.get("dataset_name") or "").strip()
-            metric = (row.get("metric_name") or "").strip()
-            value = (row.get("value") or "").strip()
-            if not method or not metric:
-                raise ValueError("Each row must include method_name and metric_name.")
-            records.append(Record(method=method, dataset=dataset, metric=metric, value=value))
+            if not method:
+                raise ValueError("Each row must include method_name.")
+            for metric in present_metrics:
+                value = (row.get(metric) or "").strip()
+                records.append(Record(method=method, dataset=dataset, metric=metric, value=value))
 
     if not records:
         raise ValueError("CSV file has no data rows.")
