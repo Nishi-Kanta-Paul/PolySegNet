@@ -20,11 +20,11 @@ METRICS = [
     "recall",
     "f_measure",
     "mae",
-    "boundary_f1",
-    "hausdorff",
-    "hd95",
-    "asd",
-    "assd",
+    "mask_boundary_f1",
+    "mask_hd",
+    "mask_hd95",
+    "mask_asd",
+    "mask_assd",
 ]
 
 

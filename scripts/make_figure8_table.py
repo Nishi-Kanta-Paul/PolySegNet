@@ -32,6 +32,23 @@ METRIC_COLUMNS = [
     "params_m", "flops_g", "fps",
 ]
 
+METRIC_DISPLAY = {
+    "dice": "Dice",
+    "iou": "IoU",
+    "precision": "Prec.",
+    "recall": "Recall",
+    "f_measure": "F-meas.",
+    "mae": "MAE",
+    "mask_boundary_f1": "BF1",
+    "mask_hd": "HD",
+    "mask_hd95": "HD95",
+    "mask_asd": "ASD",
+    "mask_assd": "ASSD",
+    "params_m": "Params(M)",
+    "flops_g": "FLOPs(G)",
+    "fps": "FPS",
+}
+
 
 @dataclass(frozen=True)
 class Record:
@@ -146,10 +163,11 @@ def _column_key_order(records: List[Record]) -> List[Tuple[str, str]]:
     return order
 
 
-def _format_column_label(dataset: str, metric: str) -> str:
-    if not dataset or dataset == metric:
-        return metric
-    return f"{dataset} {metric}".strip()
+def _format_column_label(dataset: str, metric: str, multi_dataset: bool = False) -> str:
+    display = METRIC_DISPLAY.get(metric, metric)
+    if multi_dataset and dataset and dataset != metric:
+        return f"{dataset}\n{display}"
+    return display
 
 
 def _best_second(
@@ -186,7 +204,9 @@ def _build_table_data(records: List[Record]) -> Tuple[List[str], List[List[str]]
         if number is not None:
             numeric_values.setdefault(record.method, {})[key] = number
 
-    header = ["Method"] + [_format_column_label(*key) for key in column_keys]
+    all_datasets = {key[0] for key in column_keys if key[0]}
+    multi_dataset = len(all_datasets) > 1
+    header = ["Method"] + [_format_column_label(key[0], key[1], multi_dataset) for key in column_keys]
     rows: List[List[str]] = []
     for method in method_order:
         row = [method]
