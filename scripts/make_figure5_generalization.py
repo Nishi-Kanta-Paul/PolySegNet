@@ -37,6 +37,12 @@ def main() -> None:
     parser.add_argument("--csv", required=True, help="Path to generalization CSV.")
     parser.add_argument("--train-dataset", required=True, help="Training dataset name.")
     parser.add_argument("--output", default="paper_figures/fig_generalization.png")
+    parser.add_argument(
+        "--ymin",
+        type=float,
+        default=0.75,
+        help="Y-axis lower bound to amplify small improvements (default: 0.75).",
+    )
     args = parser.parse_args()
 
     targets, without_vals, with_vals = _load_csv(args.csv)
@@ -54,7 +60,7 @@ def main() -> None:
             improvement = 0.0
         else:
             improvement = (wth - wout) / wout * 100.0
-        y_pos = max(wout, wth) + 0.01
+        y_pos = max(wout, wth) + 0.005
         ax.text(
             x[idx],
             y_pos,
@@ -69,15 +75,19 @@ def main() -> None:
     ax.set_xticks(x)
     ax.set_xticklabels(targets, rotation=0)
     ax.set_ylabel("Dice score")
+    ax.set_ylim(bottom=args.ymin)
     ax.legend(loc="upper left", fontsize=9)
 
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
-    ax.grid(False)
+    ax.yaxis.grid(True, linestyle=":", alpha=0.5)
+    ax.set_axisbelow(True)
 
     fig.tight_layout()
     output_path = os.path.abspath(args.output)
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
     print(f"Saved figure to {output_path}")
